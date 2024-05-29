@@ -106,6 +106,7 @@ export class TypesService {
        * returns all registered visualization types
        */
       all: (): VisType[] => {
+        debugger;
         return [...Object.values(this.types)];
       },
       /**

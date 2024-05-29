@@ -102,4 +102,5 @@ export const metricsVisDefinition = {
     return params.index_pattern ? await indexPatterns.find(params.index_pattern) : [];
   },
   responseHandler: 'none',
+  isBuilderType: true
 };

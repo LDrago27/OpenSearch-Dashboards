@@ -87,5 +87,6 @@ export const createVegaTypeDefinition = (
       return [];
     },
     inspectorAdapters: createInspectorAdapters,
+    isBuilderType: true
   };
 };

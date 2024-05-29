@@ -44,6 +44,8 @@ import { VisualizeConstants } from '../visualize_constants';
 import { getTableColumns, getNoItemsMessage } from '../utils';
 import { getUiActions } from '../../services';
 import { SAVED_OBJECT_DELETE_TRIGGER } from '../../../../saved_objects_management/public';
+import { EuiLink } from '@elastic/eui';
+import { FormattedMessage } from '@osd/i18n/react';
 
 export const VisualizeListing = () => {
   const {
@@ -162,6 +164,25 @@ export const VisualizeListing = () => {
     [savedObjects.client, toastNotifications]
   );
 
+  const bannerProps = [ {
+    title: "Try VisBuilder",
+    titleIcon: "visBuilder",
+    body: <FormattedMessage
+    id="visualize.tryVisBuilderInfoText"
+    defaultMessage="Create visualizations easily through VisBuilder. {navigationLink}."
+    values={{
+      navigationLink: (
+        <EuiLink
+          external
+          href="/app/vis-builder/#/"
+        >
+          Click here to get started. 
+        </EuiLink>
+      ),
+    }}
+  />
+  }];
+
   return (
     <TableListView
       headingId="visualizeListingHeading"
@@ -186,6 +207,7 @@ export const VisualizeListing = () => {
         defaultMessage: 'Visualizations',
       })}
       toastNotifications={toastNotifications}
+      bannerPropsList={bannerProps}
     />
   );
 };

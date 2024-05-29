@@ -72,6 +72,7 @@ export interface VisTypeAlias {
   description: string;
   getSupportedTriggers?: () => Array<keyof TriggerContextMapping>;
   stage: 'experimental' | 'beta' | 'production';
+  isBuilderType?: boolean;
 
   appExtensions?: {
     visualizations: VisualizationsAppExtension;

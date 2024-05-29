@@ -97,4 +97,5 @@ export interface VisType<TVisParams = unknown> {
   readonly editor?: any;
   readonly editorConfig: Record<string, any>;
   readonly visConfig: Record<string, any>;
+  readonly isBuilderType?: boolean;
 }

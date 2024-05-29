@@ -60,6 +60,12 @@ interface Item {
   id?: string;
 }
 
+interface BannerProps {
+  title: string;
+  titleIcon?: string;
+  body?: JSX.Element; 
+}
+
 export interface TableListViewProps {
   createButton?: JSX.Element;
   createItem?(): void;
@@ -81,6 +87,7 @@ export interface TableListViewProps {
    * If the table is not empty, this component renders its own h1 element using the same id.
    */
   headingId?: string;
+  bannerPropsList?: BannerProps[]; // props for each of the banners
 }
 
 export interface TableListViewState {
@@ -496,6 +503,23 @@ class TableListView extends React.Component<TableListViewProps, TableListViewSta
     return this.renderListing();
   }
 
+  renderBanner(bannerProps: BannerProps) {
+    console.log("YO");
+    return (
+      <div>
+      <EuiCallOut
+        data-test-subj={"visualize.banner."+bannerProps.title}
+        size="m"
+        title={bannerProps.title}
+        iconType={bannerProps.titleIcon}
+      >
+        {bannerProps.body ? bannerProps.body : null}
+      </EuiCallOut>
+      <EuiSpacer size="m" />
+      </div>
+    );
+  }
+
   renderListing() {
     const defaultCreateButton = this.props.createItem ? (
       <EuiFlexItem grow={false}>
@@ -512,7 +536,7 @@ class TableListView extends React.Component<TableListViewProps, TableListViewSta
           />
         </EuiButton>
       </EuiFlexItem>
-    ) : (
+    ) : ( 
       false
     );
 
@@ -534,7 +558,7 @@ class TableListView extends React.Component<TableListViewProps, TableListViewSta
 
         {this.renderListingLimitWarning()}
         {this.renderFetchError()}
-
+        {this.props.bannerPropsList?.map(bannerProps => this.renderBanner(bannerProps))}
         {this.renderTable()}
       </div>
     );

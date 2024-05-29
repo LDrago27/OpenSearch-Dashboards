@@ -34,9 +34,11 @@ import { orderBy } from 'lodash';
 import React, { ChangeEvent } from 'react';
 
 import {
+  EuiAccordion,
   EuiFieldSearch,
   EuiFlexGroup,
   EuiFlexItem,
+  EuiHorizontalRule,
   EuiKeyPadMenu,
   EuiKeyPadMenuItem,
   EuiModalHeader,
@@ -143,12 +145,24 @@ class TypeSelection extends React.Component<TypeSelectionProps, TypeSelectionSta
                       )}
                     </span>
                   </EuiScreenReaderOnly>
-                  <EuiKeyPadMenu
-                    className="visNewVisDialog__types"
-                    data-test-subj="visNewDialogTypes"
-                  >
-                    {visTypes.map(this.renderVisType)}
-                  </EuiKeyPadMenu>
+                  <EuiSpacer size="s"/>
+                  <EuiAccordion id="visualization.builders" buttonContent="Builders" initialIsOpen={true}>
+                    <EuiKeyPadMenu
+                      className="visNewVisDialog__builders"
+                      data-test-subj="visNewDialogBuilders"
+                    >
+                      {visTypes.filter(visType => visType.type.isBuilderType === true).map(this.renderVisType)}
+                    </EuiKeyPadMenu>
+                  </EuiAccordion>
+                  <EuiHorizontalRule margin="s"/>
+                  <EuiAccordion id="visualization.types" buttonContent="Types" initialIsOpen={true}>
+                    <EuiKeyPadMenu
+                      className="visNewVisDialog__types"
+                      data-test-subj="visNewDialogTypes"
+                    >
+                      {visTypes.filter(visType => visType.type.isBuilderType === undefined || visType.type.isBuilderType === false).map(this.renderVisType)}
+                    </EuiKeyPadMenu>
+                  </EuiAccordion>
                 </EuiFlexItem>
               </EuiFlexGroup>
             </EuiFlexItem>
