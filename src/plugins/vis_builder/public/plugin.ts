@@ -184,6 +184,12 @@ export class VisBuilderPlugin
     const embeddableFactory = new VisBuilderEmbeddableFactory({ start });
     embeddable.registerEmbeddableFactory(VISBUILDER_EMBEDDABLE, embeddableFactory);
 
+    const visBuilderPromotion = {
+      description: 'Create drag-and-drop visualizations using VisBuilder.',
+      buttonText: 'Try it out',
+      title: 'Introducing the new Visualization Builder',
+    };
+
     // Register the plugin as an alias to create visualization
     visualizations.registerAlias({
       name: PLUGIN_ID,
@@ -191,9 +197,11 @@ export class VisBuilderPlugin
       description: i18n.translate('visBuilder.visPicker.description', {
         defaultMessage: 'Create visualizations using the new VisBuilder',
       }),
-      icon: 'visBuilder',
+      icon: 'visBuilderSavedObject',
       aliasApp: PLUGIN_ID,
       aliasPath: '#/',
+      promotion: visBuilderPromotion,
+      stage:"production",
       appExtensions: {
         visualizations: {
           docTypes: [VISBUILDER_SAVED_OBJECT],
@@ -201,9 +209,10 @@ export class VisBuilderPlugin
             description: attributes?.description,
             editApp: PLUGIN_ID,
             editUrl: `${EDIT_PATH}/${encodeURIComponent(id)}`,
-            icon: 'visBuilder',
+            icon: 'visBuilderSavedObject',
             id,
             savedObjectType: VISBUILDER_SAVED_OBJECT,
+            stage: 'production',
             title: attributes?.title,
             typeTitle: VIS_BUILDER_CHART_TYPE,
             updated_at: updatedAt,
