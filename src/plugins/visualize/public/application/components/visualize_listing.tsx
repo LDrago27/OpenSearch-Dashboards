@@ -34,6 +34,8 @@ import { i18n } from '@osd/i18n';
 import { useUnmount, useMount } from 'react-use';
 import { useLocation } from 'react-router-dom';
 
+import { EuiLink } from '@elastic/eui';
+import { FormattedMessage } from 'react-intl';
 import {
   useOpenSearchDashboards,
   TableListView,
@@ -162,6 +164,26 @@ export const VisualizeListing = () => {
     [savedObjects.client, toastNotifications]
   );
 
+  const bannerProps = [
+    {
+      title: 'Introducing the new Visualization Builder',
+      titleIcon: 'visBuilderSavedObject',
+      body: (
+        <FormattedMessage
+          id="visualize.tryVisBuilderInfoText"
+          defaultMessage="Create visualizations easily through VisBuilder. {navigationLink}."
+          values={{
+            navigationLink: (
+              <EuiLink external href="/app/vis-builder/#/">
+                Click here to get started.
+              </EuiLink>
+            ),
+          }}
+        />
+      ),
+    },
+  ];
+
   return (
     <TableListView
       headingId="visualizeListingHeading"
@@ -186,6 +208,7 @@ export const VisualizeListing = () => {
         defaultMessage: 'Visualizations',
       })}
       toastNotifications={toastNotifications}
+      bannerPropsList={bannerProps}
     />
   );
 };
