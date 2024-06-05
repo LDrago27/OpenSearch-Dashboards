@@ -93,7 +93,7 @@ export const DraggableFieldButton = ({ dragValue, field, ...rest }: DraggableFie
     return str.replace(/\./g, '.\u200B');
   }
 
-  const defaultIcon = <FieldIcon type={type} scripted={scripted} size="l" />;
+  const defaultIcon = <FieldIcon type={type} scripted={scripted} size="m" />;
 
   const defaultFieldName = (
     <span data-test-subj={`field-${name}`} title={name} className="vbFieldButton__name">

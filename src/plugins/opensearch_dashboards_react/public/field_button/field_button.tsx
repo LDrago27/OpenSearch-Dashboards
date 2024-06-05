@@ -88,7 +88,7 @@ export type ButtonSize = keyof typeof sizeToClassNameMap;
 export const SIZES = Object.keys(sizeToClassNameMap) as ButtonSize[];
 
 export function FieldButton({
-  size = 'm',
+  size = 's',
   isActive = false,
   fieldIcon,
   fieldName,

@@ -18,7 +18,7 @@
   &__container {
     display: grid;
     grid-gap: calc($euiSizeXS / 2);
-    padding: calc($euiSizeS - ($euiSizeXS / 2)) $euiSizeS $euiSizeS $euiSizeS;
+    padding: calc($euiSizeXS - ($euiSizeXS / 2)) $euiSizeXS $euiSizeXS $euiSizeXS;
     background-color: $euiColorLightShade;
     border-radius: $euiBorderRadius;
     overflow-x: hidden;
@@ -28,7 +28,7 @@
     display: grid;
     grid-template-columns: 1fr auto;
     grid-gap: $euiSizeS;
-    padding: $euiSizeS $euiSizeM;
+    padding: $euiSizeXS $euiSizeXS;
     align-items: center;
   }
 

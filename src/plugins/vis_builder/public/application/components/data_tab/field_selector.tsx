@@ -4,7 +4,13 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { EuiFlexItem, EuiAccordion, EuiNotificationBadge, EuiTitle } from '@elastic/eui';
+import {
+  EuiFlexItem,
+  EuiAccordion,
+  EuiNotificationBadge,
+  EuiTitle,
+  EuiFlexGroup,
+} from '@elastic/eui';
 
 import { IndexPattern, IndexPatternField, OSD_FIELD_TYPES } from '../../../../../data/public';
 
