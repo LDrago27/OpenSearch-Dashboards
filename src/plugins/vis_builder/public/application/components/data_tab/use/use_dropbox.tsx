@@ -18,19 +18,22 @@ import {
 } from '../../../utils/state_management/visualization_slice';
 import { useOpenSearchDashboards } from '../../../../../../opensearch_dashboards_react/public';
 import { VisBuilderServices } from '../../../../types';
-import { useAggs } from '../../../utils/use';
 
 const filterByName = propFilter('name');
 const filterByType = propFilter('type');
 
 export interface UseDropboxProps extends Pick<DropboxProps, 'id' | 'label'> {
   schema: Schema;
+  aggProps: any;
+  displayFieldProps: any;
 }
 
 export const useDropbox = (props: UseDropboxProps): DropboxProps => {
-  const { id: dropboxId, label, schema } = props;
+  const { id: dropboxId, label, schema, aggProps, displayFieldProps } = props;
   const [validAggTypes, setValidAggTypes] = useState<string[]>([]);
-  const { aggConfigs, indexPattern, aggs, timeRange } = useAggs();
+  const { aggConfigs, indexPattern, aggs, timeRange } = aggProps;
+  const [fields, setFields] = displayFieldProps;
+
   const dispatch = useTypedDispatch();
   const {
     services: {
@@ -59,6 +62,13 @@ export const useDropbox = (props: UseDropboxProps): DropboxProps => {
       ) ?? [],
     [dropboxAggs, timeRange]
   );
+
+  useEffect(() => {
+    if (displayFields && JSON.stringify(fields) !== JSON.stringify(displayFields)) {
+      setFields(displayFields);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayFields]);
 
   // Event handlers for each dropbox action type
   const onAddField = useCallback(() => {
@@ -105,7 +115,6 @@ export const useDropbox = (props: UseDropboxProps): DropboxProps => {
   const onDeleteField = useCallback(
     (aggId: string) => {
       const newAggs = aggConfigs?.aggs.filter((agg) => agg.id !== aggId);
-
       if (newAggs) {
         dispatch(updateAggConfigParams(newAggs.map((agg) => agg.serialize())));
       }
@@ -192,8 +201,7 @@ export const useDropbox = (props: UseDropboxProps): DropboxProps => {
       setValidAggTypes([]);
     };
   }, [aggService.types, dragData, indexPattern?.fields, schema.aggFilter, schema.group]);
-
-  const canDrop = validAggTypes.length > 0 && schema.max > dropboxAggs.length;
+  const canDrop = validAggTypes.length >= 0 && schema.max >= dropboxAggs.length;
 
   return {
     id: dropboxId,

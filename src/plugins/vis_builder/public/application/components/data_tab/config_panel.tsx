@@ -8,7 +8,7 @@ import React from 'react';
 import { useVisualizationType } from '../../utils/use';
 import { useTypedSelector } from '../../utils/state_management';
 import './config_panel.scss';
-import { mapSchemaToAggPanel } from './schema_to_dropbox';
+import { MapSchemaToAggPanel } from './schema_to_dropbox';
 import { SecondaryPanel } from './secondary_panel';
 
 export function ConfigPanel() {
@@ -20,7 +20,7 @@ export function ConfigPanel() {
 
   if (!schemas) return null;
 
-  const mainPanel = mapSchemaToAggPanel(schemas);
+  const mainPanel = MapSchemaToAggPanel(schemas);
 
   return (
     <EuiForm className={`vbConfig ${editingState ? 'showSecondary' : ''}`}>
