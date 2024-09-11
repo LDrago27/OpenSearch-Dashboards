@@ -35,8 +35,9 @@ import React from 'react';
 import { DataPublicPluginStart } from 'src/plugins/data/public';
 import { ApplicationStart, IUiSettingsClient, SavedObjectsStart } from '../../../../../core/public';
 
-import { SavedObjectFinderUi } from '../../../../saved_objects/public';
 import { VisType } from '../../vis_types';
+import { first } from 'rxjs/operators';
+import { SavedObjectFinderUi } from '../../../../saved_objects/public';
 
 interface SearchSelectionProps {
   onSearchSelected: (searchId: string, searchType: string) => void;
@@ -89,6 +90,13 @@ export class SearchSelection extends React.Component<SearchSelectionProps> {
                   }
                 ),
                 includeFields: ['kibanaSavedObjectMeta'],
+                searchFilterFn: async (savedObj) => {
+                    const currentAppId = await this.props.application.currentAppId$.pipe(first()).toPromise();
+                    const sourceObject = JSON.parse(
+                    savedObj.attributes?.kibanaSavedObjectMeta?.searchSourceJSON ?? null);
+                    const languageId = sourceObject?.query?.language;
+                    return this.props.data.query.queryString.getLanguageService().getLanguage(languageId)?.supportedAppNames?.includes(currentAppId) ?? true;
+                }
               },
               {
                 type: 'index-pattern',
@@ -104,8 +112,6 @@ export class SearchSelection extends React.Component<SearchSelectionProps> {
             fixedPageSize={this.fixedPageSize}
             uiSettings={this.props.uiSettings}
             savedObjects={this.props.savedObjects}
-            application={this.props.application}
-            data={this.props.data}
           />
         </EuiModalBody>
       </React.Fragment>

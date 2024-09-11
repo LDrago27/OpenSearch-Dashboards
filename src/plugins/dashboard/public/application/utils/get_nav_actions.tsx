@@ -176,9 +176,7 @@ export const getNavActions = (
         overlays,
         SavedObjectFinder: getSavedObjectFinder(
           savedObjects,
-          uiSettings,
-          services.data,
-          services.application
+          uiSettings
         ),
       });
     }

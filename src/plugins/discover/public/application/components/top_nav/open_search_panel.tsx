@@ -46,6 +46,7 @@ import { SavedObjectFinderUi } from '../../../../../saved_objects/public';
 import { useOpenSearchDashboards } from '../../../../../opensearch_dashboards_react/public';
 import { DiscoverViewServices } from '../../../build_services';
 import { SAVED_OBJECT_TYPE } from '../../../saved_searches/_saved_search';
+import { first } from 'rxjs/operators';
 
 interface Props {
   onClose: () => void;
@@ -89,6 +90,13 @@ export function OpenSearchPanel({ onClose, makeUrl }: Props) {
                 defaultMessage: 'Saved search',
               }),
               includeFields: ['kibanaSavedObjectMeta'],
+              searchFilterFn: async (savedObj) => {
+                const currentAppId = await application.currentAppId$.pipe(first()).toPromise();
+                const sourceObject = JSON.parse(
+                savedObj.attributes?.kibanaSavedObjectMeta?.searchSourceJSON ?? null);
+                const languageId = sourceObject?.query?.language;
+                return data.query.queryString.getLanguageService().getLanguage(languageId)?.supportedAppNames?.includes(currentAppId) ?? true;
+            }
             },
           ]}
           onChoose={(id) => {
@@ -97,8 +105,6 @@ export function OpenSearchPanel({ onClose, makeUrl }: Props) {
           }}
           uiSettings={uiSettings}
           savedObjects={savedObjects}
-          application={application}
-          data={data}
         />
       </EuiFlyoutBody>
       <EuiFlyoutFooter>

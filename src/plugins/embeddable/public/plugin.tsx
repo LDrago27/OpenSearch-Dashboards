@@ -197,8 +197,6 @@ export class EmbeddablePublicPlugin implements Plugin<EmbeddableSetup, Embeddabl
         SavedObjectFinder={getSavedObjectFinder(
           core.savedObjects,
           core.uiSettings,
-          data,
-          core.application
         )}
       />
     );
