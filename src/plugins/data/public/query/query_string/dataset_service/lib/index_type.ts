@@ -31,17 +31,16 @@ export const indexTypeConfig: DatasetTypeConfig = {
     const index = path[path.length - 1];
     const dataSource = path.find((ds) => ds.type === 'DATA_SOURCE');
     const indexMeta = index.meta as DataStructureCustomMeta;
-
     return {
       id: index.id,
       title: index.title,
       type: DEFAULT_DATA.SET_TYPES.INDEX,
       timeFieldName: indexMeta?.timeFieldName,
-      dataSource: dataSource
+      dataSource: dataSource?.parent
         ? {
-            id: dataSource.id,
-            title: dataSource.title,
-            type: dataSource.type,
+            id: dataSource.parent.id,
+            title: dataSource.parent.title,
+            type: dataSource.parent.type,
           }
         : DEFAULT_DATA.STRUCTURES.LOCAL_DATASOURCE,
     };
@@ -49,17 +48,45 @@ export const indexTypeConfig: DatasetTypeConfig = {
 
   fetch: async (services, path) => {
     const dataStructure = path[path.length - 1];
+    const httpClient = services.http;
+
     switch (dataStructure.type) {
       case 'DATA_SOURCE': {
-        const indices = await fetchIndices(dataStructure);
+        const datasourceId = dataStructure.parent?.id;
+        const connectionAlias = dataStructure.id;
+        const indices =
+          connectionAlias === 'local-cluster'
+            ? await fetchIndices(dataStructure.parent!)
+            : await fetchRemoteClusterIndexes(datasourceId, connectionAlias, httpClient);
         return {
           ...dataStructure,
           hasNext: false,
           columnHeader: 'Indexes',
           children: indices.map((indexName) => ({
-            id: `${dataStructure.id}::${indexName}`,
+            id:
+              connectionAlias === 'local-cluster'
+                ? `${datasourceId}::${indexName}`
+                : `${datasourceId}::${connectionAlias}:${indexName}`,
             title: indexName,
             type: 'INDEX',
+          })),
+        };
+      }
+
+      case 'CONNECTION_ALIAS': {
+        const remoteConnections = await fetchRemoteClusterConnectionAliases(
+          dataStructure.id,
+          httpClient
+        );
+        return {
+          ...dataStructure,
+          hasNext: true,
+          columnHeader: 'Connections',
+          children: remoteConnections.map((connectionAlias) => ({
+            id: connectionAlias,
+            parent: dataStructure,
+            title: connectionAlias,
+            type: 'DATA_SOURCE',
           })),
         };
       }
@@ -124,7 +151,7 @@ const fetchDataSources = async (client: SavedObjectsClientContract) => {
   const dataSources: DataStructure[] = response.savedObjects.map((savedObject) => ({
     id: savedObject.id,
     title: savedObject.attributes.title,
-    type: 'DATA_SOURCE',
+    type: 'CONNECTION_ALIAS',
   }));
 
   return injectMetaToDataStructures(dataSources);
@@ -174,4 +201,23 @@ const fetchIndices = async (dataStructure: DataStructure): Promise<string[]> => 
     .search(buildSearchRequest())
     .pipe(map(searchResponseToArray))
     .toPromise();
+};
+
+const fetchRemoteClusterConnectionAliases = async (datasourceId, http) => {
+  const response = await http.get(`/api/enhancements/remoteclusters`, {
+    query: {
+      dataSourceId: datasourceId,
+    },
+  });
+  return ['local-cluster', ...response.map((remoteCluster) => remoteCluster.connectionAlias)];
+};
+
+const fetchRemoteClusterIndexes = async (datasourceId, connectionAlias, http) => {
+  const response = await http.get(`/api/enhancements/remoteclusters/indexes`, {
+    query: {
+      dataSourceId: datasourceId,
+      connectionAlias,
+    },
+  });
+  return response;
 };

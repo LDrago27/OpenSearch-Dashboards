@@ -15,6 +15,7 @@ import { ISearchStrategy } from '../../../data/server';
 import { API } from '../../common';
 import { registerQueryAssistRoutes } from './query_assist';
 import { registerDataSourceConnectionsRoutes } from './data_source_connection';
+import { registerRemoteClusterRoutes } from './cross_cluster_search';
 
 /**
  * Coerce status code to 503 for 500 errors from dependency services. Only use
@@ -136,4 +137,5 @@ export function defineRoutes(
   });
   registerDataSourceConnectionsRoutes(router, client);
   registerQueryAssistRoutes(router);
+  registerRemoteClusterRoutes(router);
 }

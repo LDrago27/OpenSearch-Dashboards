@@ -38,6 +38,10 @@ export const API = {
   AGENT_API: {
     CONFIG_EXISTS: `${BASE_API_ASSISTANT}/agent_config/_exists`,
   },
+  REMOTECLUSTER: {
+    LIST: `${BASE_API}/remoteclusters`,
+    INDEXES: `${BASE_API}/remoteclusters/indexes`,
+  },
 };
 
 export const URI = {
