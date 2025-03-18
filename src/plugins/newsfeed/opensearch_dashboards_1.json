@@ -1,0 +1,7 @@
+{
+  "id": "newsFeed",
+  "version": "opensearchDashboards",
+  "server": true,
+  "ui": true,
+  "requiredPlugins": ["navigation", "data", "home"]
+}
