@@ -94,4 +94,7 @@ export interface DataSourceTableItem {
   label: string;
   datasourceversion: string;
   installedplugins: string[];
+  engine: string;
+  relatedDataSourceConnection?: DataSourceTableItem[];
+  append?: any;
 }

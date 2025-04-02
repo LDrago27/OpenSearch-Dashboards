@@ -76,7 +76,10 @@ export enum MlCardState {
   ENABLED,
 }
 
-export type DataSourceRef = { title: string } & Pick<SavedObjectReference, 'type' | 'id'>;
+export type DataSourceRef = { title: string; relatedConnections?: any } & Pick<
+  SavedObjectReference,
+  'type' | 'id'
+>;
 
 export interface IndexPatternTableRecord {
   type: string;

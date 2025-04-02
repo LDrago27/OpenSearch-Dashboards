@@ -177,7 +177,7 @@ export class CreateIndexPatternWizard extends Component<
     ).then((allIndices: MatchedItem[]) =>
       this.setState({ allIndices, isInitiallyLoadingIndices: false })
     );
-
+    /*
     this.catchAndWarn(
       // if we get an error from remote cluster query, supply fallback value that allows user entry.
       // ['a'] is fallback value
@@ -187,7 +187,29 @@ export class CreateIndexPatternWizard extends Component<
       clustersFailMsg
     ).then((remoteIndices: string[] | MatchedItem[]) =>
       this.setState({ remoteClustersExist: !!remoteIndices.length })
-    );
+    ); */
+
+    // Block 2: Remote indices
+    this.catchAndWarn(
+      Promise.all(
+        dataSourceRef?.relatedConnections?.map(async (connection: { title: any }) =>
+          getIndices({
+            http,
+            getIndexTags,
+            pattern: `${connection.title}:*`,
+            searchClient,
+            dataSourceId,
+          })
+        ) || []
+      ),
+      ['a'],
+      clustersFailMsg
+    ).then((results) => {
+      const remoteIndices = results.flat();
+      this.setState({
+        allIndices: [...this.state.allIndices, ...remoteIndices],
+      });
+    });
   };
 
   createIndexPattern = async (timeFieldName: string | undefined, indexPatternId: string) => {
