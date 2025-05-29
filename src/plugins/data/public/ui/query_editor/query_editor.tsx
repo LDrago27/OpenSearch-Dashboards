@@ -70,6 +70,7 @@ export const QueryEditorUI: React.FC<Props> = (props) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [lineCount, setLineCount] = useState<number | undefined>(undefined);
   const [isRecentQueryVisible, setIsRecentQueryVisible] = useState(false);
+  const [currentAppId, setCurrentAppId] = useState<string>(''); // Add app ID state
 
   const inputRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -108,6 +109,21 @@ export const QueryEditorUI: React.FC<Props> = (props) => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (services?.application?.currentAppId$) {
+      services.application.currentAppId$.subscribe((appId) => {
+        setCurrentAppId(appId || '');
+      });
+    }
+  }, [services.application?.currentAppId$]);
+
+  const getEffectiveLanguageForAutoComplete = (baseLanguage: string): string => {
+    if (baseLanguage === 'PPL' && currentAppId === 'explore') {
+      return 'PPL_Simplified';
+    }
+    return baseLanguage;
+  };
 
   const renderQueryEditorExtensions = () => {
     if (
@@ -233,11 +249,13 @@ export const QueryEditorUI: React.FC<Props> = (props) => {
     const dataset = queryString.getQuery().dataset;
     const indexPattern = dataset ? await getIndexPatterns().get(dataset.id) : undefined;
 
+    const language = getEffectiveLanguageForAutoComplete(queryRef.current.language);
+
     const suggestions = await services.data.autocomplete.getQuerySuggestions({
       query: inputRef.current?.getValue() ?? '',
       selectionStart: model.getOffsetAt(position), // not needed, position handles same thing. remove
       selectionEnd: model.getOffsetAt(position),
-      language: queryRef.current.language,
+      language,
       indexPattern,
       datasetType: dataset?.type,
       position,
