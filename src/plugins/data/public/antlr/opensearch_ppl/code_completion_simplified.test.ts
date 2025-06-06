@@ -57,7 +57,21 @@ describe('ppl code_completion', () => {
       ).toBeTruthy();
     };
 
-    it('should return empty array when required parameters are missing', async () => {
+    it('should return empty array when services are missing', async () => {
+      const result = await getSimplifiedPPLSuggestions({
+        query: '',
+        indexPattern: mockIndexPattern,
+        position: mockPosition,
+        language: 'PPL',
+        selectionStart: 0,
+        selectionEnd: 0,
+        services: (null as unknown) as IDataPluginServices,
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty array when index pattern are missing', async () => {
       const result = await getSimplifiedPPLSuggestions({
         query: '',
         indexPattern: (null as unknown) as IndexPattern,
@@ -65,7 +79,24 @@ describe('ppl code_completion', () => {
         language: 'PPL',
         selectionStart: 0,
         selectionEnd: 0,
-        services: (null as unknown) as IDataPluginServices,
+        services: mockServices,
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty array when apname are missing', async () => {
+      const result = await getSimplifiedPPLSuggestions({
+        query: '',
+        indexPattern: mockIndexPattern,
+        position: mockPosition,
+        language: 'PPL',
+        selectionStart: 0,
+        selectionEnd: 0,
+        services: {
+          ...mockServices,
+          appName: '',
+        },
       });
 
       expect(result).toEqual([]);
@@ -128,6 +159,15 @@ describe('ppl code_completion', () => {
 
       checkSuggestionsContain(result, {
         text: 'field1',
+        type: monaco.languages.CompletionItemKind.Field,
+      });
+    });
+
+    it('should always suggest columns when we have a fieldList command', async () => {
+      const result = await getSimpleSuggestions('source = test-index | fields field1, ');
+
+      checkSuggestionsContain(result, {
+        text: 'field2',
         type: monaco.languages.CompletionItemKind.Field,
       });
     });

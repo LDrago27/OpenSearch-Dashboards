@@ -112,6 +112,7 @@ export function processVisitedRules(
   const rerunWithoutRules: number[] = [];
 
   for (const [ruleId, rule] of rules) {
+    const parentRuleList = rule.ruleList;
     switch (ruleId) {
       case OpenSearchPPLParser.RULE_integerLiteral:
       case OpenSearchPPLParser.RULE_decimalLiteral:
@@ -119,16 +120,23 @@ export function processVisitedRules(
         break;
       }
       case OpenSearchPPLParser.RULE_statsFunctionName: {
+        // suggests aggregate functions like avg, count etc after stats command , eg: source = abc | stats
         suggestAggregateFunctions = true;
         break;
       }
       case OpenSearchPPLParser.RULE_qualifiedName: {
+        // Avoids suggestion fieldNames when last token is source. eg: source = , should suggest only tableName and not fieldname
         const lastTokenResult = findLastNonSpaceOperatorToken(tokenStream, cursorTokenIndex);
         if (lastTokenResult?.token.type === tokenDictionary.SOURCE) {
           break;
         }
+        // In case we have a command with a field list for example source = abc | fields field1, field2, ... . Always suggest a column Don't evaluate other conditions
         // handling the scenario if the last Token is ID, we Don't suggest Column except in the case the second last token is Source to handle the scenario source = tablename fieldname suggestions
-        if (lastTokenResult && lastTokenResult?.token.type === tokenDictionary.ID) {
+        if (
+          !(parentRuleList ?? []).includes(OpenSearchPPLParser.RULE_fieldList) &&
+          lastTokenResult &&
+          lastTokenResult?.token.type === tokenDictionary.ID
+        ) {
           const secondLastTokenResult = findLastNonSpaceOperatorToken(
             tokenStream,
             lastTokenResult.index

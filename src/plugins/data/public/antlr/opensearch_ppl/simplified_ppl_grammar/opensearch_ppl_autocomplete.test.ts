@@ -24,6 +24,13 @@ describe('Token Dictionary and Ignored Tokens', () => {
     expect(ignoredTokens.has(OpenSearchPPLParser.CASE)).toBe(true);
     expect(ignoredTokens.has(OpenSearchPPLParser.CAST)).toBe(true);
   });
+
+  it('should not ignore essential parsing tokens', () => {
+    const ignoredTokens = new Set(openSearchPplAutocompleteData.ignoredTokens);
+    expect(ignoredTokens.has(OpenSearchPPLParser.SEARCH)).toBe(false);
+    expect(ignoredTokens.has(OpenSearchPPLParser.PIPE)).toBe(false);
+    expect(ignoredTokens.has(OpenSearchPPLParser.EOF)).toBe(false);
+  });
 });
 
 describe('processVisitedRules', () => {

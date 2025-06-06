@@ -35,6 +35,7 @@ import { QueryEditorExtensions } from './query_editor_extensions';
 import { getQueryService, getIndexPatterns } from '../../services';
 import { DefaultInputProps } from './editors';
 import { MonacoCompatibleQuerySuggestion } from '../../autocomplete/providers/query_suggestion_provider';
+import { getEffectiveLanguageForAutoComplete } from './utils';
 
 export interface QueryEditorProps {
   query: Query;
@@ -111,19 +112,10 @@ export const QueryEditorUI: React.FC<Props> = (props) => {
   }, []);
 
   useEffect(() => {
-    if (services?.application?.currentAppId$) {
-      services.application.currentAppId$.subscribe((appId) => {
-        setCurrentAppId(appId || '');
-      });
-    }
+    services.application?.currentAppId$?.subscribe?.((appId) => {
+      setCurrentAppId(appId || '');
+    });
   }, [services.application?.currentAppId$]);
-
-  const getEffectiveLanguageForAutoComplete = (baseLanguage: string): string => {
-    if (baseLanguage === 'PPL' && currentAppId === 'explore') {
-      return 'PPL_Simplified';
-    }
-    return baseLanguage;
-  };
 
   const renderQueryEditorExtensions = () => {
     if (
@@ -249,7 +241,7 @@ export const QueryEditorUI: React.FC<Props> = (props) => {
     const dataset = queryString.getQuery().dataset;
     const indexPattern = dataset ? await getIndexPatterns().get(dataset.id) : undefined;
 
-    const language = getEffectiveLanguageForAutoComplete(queryRef.current.language);
+    const language = getEffectiveLanguageForAutoComplete(queryRef.current.language, currentAppId);
 
     const suggestions = await services.data.autocomplete.getQuerySuggestions({
       query: inputRef.current?.getValue() ?? '',

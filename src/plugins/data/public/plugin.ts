@@ -183,7 +183,7 @@ export class DataPublicPlugin
     autoComplete.addQuerySuggestionProvider('SQL', getSQLSuggestions);
     autoComplete.addQuerySuggestionProvider('kuery', getDQLSuggestions);
     autoComplete.addQuerySuggestionProvider('PPL', getPPLSuggestions);
-    autoComplete.addQuerySuggestionProvider('PPL_Simplified', getSimplifiedPPLSuggestions);
+    autoComplete.addQuerySuggestionProvider('PPL_Simplified', getSimplifiedPPLSuggestions); // Support implicit PPL queries that don't necessarily start with source = datasetName
 
     const useNewSavedQueriesUI =
       core.uiSettings.get(UI_SETTINGS.QUERY_ENHANCEMENTS_ENABLED) &&
