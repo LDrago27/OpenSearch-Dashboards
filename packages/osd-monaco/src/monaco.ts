@@ -30,24 +30,7 @@
 
 /* eslint-disable @osd/eslint/module_migration */
 
-// Import the monaco-editor package directly
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-
-// Import CSS for Monaco editor icons
-import 'monaco-editor/min/vs/editor/editor.main.css';
-
-// Import worker-related modules
-import 'monaco-editor/esm/vs/base/common/worker/simpleWorker';
-import 'monaco-editor/esm/vs/editor/browser/services/editorWorkerService';
-
-// Import core editor functionality
-import 'monaco-editor/esm/vs/editor/browser/coreCommands';
-import 'monaco-editor/esm/vs/editor/browser/widget/codeEditor/codeEditorWidget';
-
-// Import editor features
-import 'monaco-editor/esm/vs/editor/contrib/wordOperations/browser/wordOperations'; // For word-wise char navigation
-import 'monaco-editor/esm/vs/editor/contrib/suggest/browser/suggestController'; // For autocomplete
-import 'monaco-editor/esm/vs/editor/contrib/hover/browser/hoverContribution'; // For hover
-import 'monaco-editor/esm/vs/editor/contrib/parameterHints/browser/parameterHints'; // For parameter hints
+// Import the monaco-editor using main entry point
+import * as monaco from 'monaco-editor';
 
 export { monaco };

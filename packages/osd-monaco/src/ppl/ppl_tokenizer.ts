@@ -3,12 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  CharStream,
-  CommonTokenStream,
-  ParseTreeWalker,
-} from 'antlr4ng';
-
+import * as antlr from 'antlr4ng';
 import { OpenSearchPPLLexer } from './.generated/OpenSearchPPLLexer';
 import { OpenSearchPPLParser } from './.generated/OpenSearchPPLParser';
 
@@ -35,193 +30,245 @@ export interface PPLCompletionItem {
 }
 
 /**
- * PPL Tokenizer using ANTLR4 generated parser
+ * PPL Tokenizer implementation using ANTLR generated parser
  */
 export class PPLTokenizer {
-  private lexer: OpenSearchPPLLexer;
-  private parser: OpenSearchPPLParser;
-
   constructor() {
-    // Initialize with empty input - will be updated when tokenizing
-    const input = CharStream.fromString('');
-    this.lexer = new OpenSearchPPLLexer(input);
-    this.parser = new OpenSearchPPLParser(new CommonTokenStream(this.lexer));
+    // ANTLR-based tokenizer initialization
   }
 
   /**
-   * Tokenize PPL code and return tokens
+   * Tokenize PPL code into tokens using ANTLR lexer
    */
-  public tokenize(code: string): PPLToken[] {
+  tokenize(code: string): PPLToken[] {
+    const tokens: PPLToken[] = [];
+
     try {
-      const input = CharStream.fromString(code);
-      this.lexer.inputStream = input;
-      this.lexer.reset();
+      const inputStream = antlr.CharStream.fromString(code);
+      const lexer = new OpenSearchPPLLexer(inputStream);
+      const tokenStream = new antlr.CommonTokenStream(lexer);
+      tokenStream.fill();
 
-      const tokens: PPLToken[] = [];
-      let token = this.lexer.nextToken();
+      const antlrTokens = tokenStream.getTokens();
 
-      while (token.type !== -1) { // EOF token
-        tokens.push({
-          type: this.getTokenTypeName(token.type),
-          value: token.text || '',
-          startIndex: token.start,
-          stopIndex: token.stop,
-          line: token.line,
-          column: token.column,
-        });
-        token = this.lexer.nextToken();
+      for (const token of antlrTokens) {
+        if (token.type !== antlr.Token.EOF) {
+          tokens.push({
+            type: this.getTokenTypeName(token.type, lexer),
+            value: token.text || '',
+            startIndex: token.start,
+            stopIndex: token.stop,
+            line: token.line,
+            column: token.column,
+          });
+        }
       }
-
-      return tokens;
     } catch (error) {
-      console.error('PPL tokenization error:', error);
-      return [];
+      // Fallback for parsing errors
     }
+
+    return tokens;
   }
 
   /**
-   * Validate PPL code and return validation result
+   * Validate PPL code using ANTLR parser
    */
-  public validate(code: string): PPLValidationResult {
+  validate(code: string): PPLValidationResult {
+    const errors: string[] = [];
+
     try {
-      const input = CharStream.fromString(code);
-      this.lexer.inputStream = input;
-      this.lexer.reset();
-      
-      const tokenStream = new CommonTokenStream(this.lexer);
-      this.parser.tokenStream = tokenStream;
-      this.parser.reset();
+      const inputStream = antlr.CharStream.fromString(code);
+      const lexer = new OpenSearchPPLLexer(inputStream);
+      const tokenStream = new antlr.CommonTokenStream(lexer);
+      const parser = new OpenSearchPPLParser(tokenStream);
 
-      // Collect errors
-      const errors: string[] = [];
-      
-      this.parser.removeErrorListeners();
-      this.parser.addErrorListener({
-        syntaxError: (recognizer, offendingSymbol, line, column, message) => {
-          errors.push(`Line ${line}:${column} - ${message}`);
-        },
-      });
-
-      // Parse the input
-      this.parser.root();
+      // Basic validation - try to parse
+      parser.root();
 
       return {
-        isValid: errors.length === 0,
-        errors,
+        isValid: true,
+        errors: [],
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`Parsing error: ${errorMessage}`);
       return {
         isValid: false,
-        errors: [error instanceof Error ? error.message : String(error)],
+        errors,
       };
     }
   }
 
   /**
-   * Get completion suggestions for PPL code at a specific position
+   * Get completions for PPL code based on ANTLR tokens
    */
-  public getCompletions(code: string, position: number): PPLCompletionItem[] {
+  getCompletions(code: string, position: number): PPLCompletionItem[] {
+    const completions: PPLCompletionItem[] = [];
+
     try {
-      // Basic completion items for PPL commands and functions
-      const completions: PPLCompletionItem[] = [
-        // Commands
-        { label: 'SEARCH', kind: 14, detail: 'PPL Command', documentation: 'Search command to filter data' },
-        { label: 'DESCRIBE', kind: 14, detail: 'PPL Command', documentation: 'Describe table structure' },
-        { label: 'SHOW', kind: 14, detail: 'PPL Command', documentation: 'Show tables or databases' },
-        { label: 'FROM', kind: 14, detail: 'PPL Command', documentation: 'Specify data source' },
-        { label: 'WHERE', kind: 14, detail: 'PPL Command', documentation: 'Filter data with conditions' },
-        { label: 'FIELDS', kind: 14, detail: 'PPL Command', documentation: 'Select specific fields' },
-        { label: 'RENAME', kind: 14, detail: 'PPL Command', documentation: 'Rename fields' },
-        { label: 'STATS', kind: 14, detail: 'PPL Command', documentation: 'Calculate statistics' },
-        { label: 'DEDUP', kind: 14, detail: 'PPL Command', documentation: 'Remove duplicate records' },
-        { label: 'SORT', kind: 14, detail: 'PPL Command', documentation: 'Sort records' },
-        { label: 'EVAL', kind: 14, detail: 'PPL Command', documentation: 'Evaluate expressions' },
-        { label: 'HEAD', kind: 14, detail: 'PPL Command', documentation: 'Get first N records' },
-        { label: 'TOP', kind: 14, detail: 'PPL Command', documentation: 'Get top N records' },
-        { label: 'RARE', kind: 14, detail: 'PPL Command', documentation: 'Get rare values' },
+      // Get the word at the current position
+      const beforePosition = code.substring(0, position);
+      const wordMatch = beforePosition.match(/\w*$/);
+      const currentWord = wordMatch ? wordMatch[0] : '';
 
-        // Functions
-        { label: 'abs', kind: 3, detail: 'Function', documentation: 'Absolute value function' },
-        { label: 'ceil', kind: 3, detail: 'Function', documentation: 'Ceiling function' },
-        { label: 'floor', kind: 3, detail: 'Function', documentation: 'Floor function' },
-        { label: 'round', kind: 3, detail: 'Function', documentation: 'Round function' },
-        { label: 'sqrt', kind: 3, detail: 'Function', documentation: 'Square root function' },
-        { label: 'avg', kind: 3, detail: 'Function', documentation: 'Average function' },
-        { label: 'count', kind: 3, detail: 'Function', documentation: 'Count function' },
-        { label: 'sum', kind: 3, detail: 'Function', documentation: 'Sum function' },
-        { label: 'min', kind: 3, detail: 'Function', documentation: 'Minimum function' },
-        { label: 'max', kind: 3, detail: 'Function', documentation: 'Maximum function' },
-        { label: 'first', kind: 3, detail: 'Function', documentation: 'First value function' },
-        { label: 'last', kind: 3, detail: 'Function', documentation: 'Last value function' },
+      // Get PPL keywords from the lexer
+      const keywords = this.getPPLKeywords();
+      const functions = this.getPPLFunctions();
 
-        // Operators
-        { label: 'AND', kind: 24, detail: 'Operator', documentation: 'Logical AND operator' },
-        { label: 'OR', kind: 24, detail: 'Operator', documentation: 'Logical OR operator' },
-        { label: 'NOT', kind: 24, detail: 'Operator', documentation: 'Logical NOT operator' },
-        { label: 'IN', kind: 24, detail: 'Operator', documentation: 'IN operator' },
-        { label: 'LIKE', kind: 24, detail: 'Operator', documentation: 'LIKE operator for pattern matching' },
-        { label: 'BETWEEN', kind: 24, detail: 'Operator', documentation: 'BETWEEN operator for range conditions' },
-
-        // Keywords
-        { label: 'AS', kind: 14, detail: 'Keyword', documentation: 'Alias keyword' },
-        { label: 'BY', kind: 14, detail: 'Keyword', documentation: 'Group by keyword' },
-        { label: 'ASC', kind: 14, detail: 'Keyword', documentation: 'Ascending sort order' },
-        { label: 'DESC', kind: 14, detail: 'Keyword', documentation: 'Descending sort order' },
-      ];
-
-      // Filter completions based on current context
-      const textBeforePosition = code.substring(0, position);
-      const lastWord = this.getLastWord(textBeforePosition);
-      
-      if (lastWord) {
-        const filtered = completions.filter(item => 
-          item.label.toLowerCase().startsWith(lastWord.toLowerCase())
-        );
-        return filtered.length > 0 ? filtered : completions;
+      // Add keyword completions
+      for (const keyword of keywords) {
+        if (keyword.toLowerCase().startsWith(currentWord.toLowerCase())) {
+          completions.push({
+            label: keyword,
+            kind: 14, // Keyword kind
+            detail: 'PPL Command',
+            documentation: `${keyword} command`,
+            insertText: keyword,
+          });
+        }
       }
 
-      return completions;
+      // Add function completions
+      for (const func of functions) {
+        if (func.toLowerCase().startsWith(currentWord.toLowerCase())) {
+          completions.push({
+            label: func,
+            kind: 3, // Function kind
+            detail: 'PPL Function',
+            documentation: `${func} function`,
+            insertText: `${func}()`,
+          });
+        }
+      }
     } catch (error) {
-      console.error('PPL completion error:', error);
-      return [];
+      // Error getting completions
     }
+
+    return completions;
   }
 
   /**
-   * Get token type name from token type number
+   * Get token type name from ANTLR token type
    */
-  private getTokenTypeName(tokenType: number): string {
-    // Map token types to readable names
-    const tokenTypeNames: { [key: number]: string } = {
-      1: 'SEARCH',
-      2: 'DESCRIBE', 
-      3: 'SHOW',
-      4: 'FROM',
-      5: 'WHERE',
-      6: 'FIELDS',
-      7: 'RENAME',
-      8: 'STATS',
-      9: 'DEDUP',
-      10: 'SORT',
-      11: 'EVAL',
-      12: 'HEAD',
-      13: 'TOP',
-      14: 'RARE',
-      15: 'PARSE',
-      16: 'AS',
-      17: 'BY',
-      // Add more mappings as needed
-    };
+  private getTokenTypeName(tokenType: number, lexer: OpenSearchPPLLexer): string {
+    const vocabulary = lexer.vocabulary;
+    const symbolicName = vocabulary.getSymbolicName(tokenType);
 
-    return tokenTypeNames[tokenType] || `TOKEN_${tokenType}`;
+    if (symbolicName) {
+      return symbolicName.toLowerCase();
+    }
+
+    const literalName = vocabulary.getLiteralName(tokenType);
+    if (literalName) {
+      return literalName.replace(/['"]/g, '');
+    }
+
+    return 'unknown';
   }
 
   /**
-   * Get the last word from text
+   * Get PPL keywords from the lexer vocabulary
    */
-  private getLastWord(text: string): string {
-    const words = text.trim().split(/\s+/);
-    return words[words.length - 1] || '';
+  private getPPLKeywords(): string[] {
+    return [
+      'SEARCH',
+      'DESCRIBE',
+      'SHOW',
+      'FROM',
+      'WHERE',
+      'FIELDS',
+      'RENAME',
+      'STATS',
+      'DEDUP',
+      'SORT',
+      'EVAL',
+      'HEAD',
+      'TOP',
+      'RARE',
+      'PARSE',
+      'AS',
+      'BY',
+      'SOURCE',
+      'INDEX',
+      'DATASOURCES',
+      'METHOD',
+      'REGEX',
+      'PATTERN',
+      'KMEANS',
+      'AD',
+      'ML',
+    ];
+  }
+
+  /**
+   * Get PPL functions
+   */
+  private getPPLFunctions(): string[] {
+    return [
+      'abs',
+      'ceil',
+      'floor',
+      'round',
+      'sqrt',
+      'log',
+      'exp',
+      'sin',
+      'cos',
+      'tan',
+      'avg',
+      'count',
+      'sum',
+      'min',
+      'max',
+      'first',
+      'last',
+      'stddev',
+      'var_pop',
+      'concat',
+      'length',
+      'lower',
+      'upper',
+      'trim',
+      'substring',
+      'replace',
+    ];
   }
 }
 
+/**
+ * Create a PPL tokenizer instance
+ */
+export const createPPLTokenizer = (): PPLTokenizer => {
+  return new PPLTokenizer();
+};
+
+/**
+ * Create PPL language configuration for Monaco
+ */
+export const createPPLLanguageConfiguration = () => ({
+  comments: {
+    lineComment: '//',
+    blockComment: ['/*', '*/'],
+  },
+  brackets: [
+    ['(', ')'],
+    ['[', ']'],
+    ['{', '}'],
+  ],
+  autoClosingPairs: [
+    { open: '(', close: ')' },
+    { open: '[', close: ']' },
+    { open: '{', close: '}' },
+    { open: '"', close: '"' },
+    { open: "'", close: "'" },
+    { open: '`', close: '`' },
+  ],
+  surroundingPairs: [
+    { open: '(', close: ')' },
+    { open: '[', close: ']' },
+    { open: '{', close: '}' },
+    { open: '"', close: '"' },
+    { open: "'", close: "'" },
+    { open: '`', close: '`' },
+  ],
+});

@@ -245,6 +245,13 @@ export class PPLWorkerProxyService {
 
     console.log('PPL worker proxy service stopped');
   }
+
+  /**
+   * Dispose of the worker and clean up resources (alias for stop)
+   */
+  public dispose(): void {
+    this.stop();
+  }
 }
 
 // Singleton instance
@@ -258,4 +265,21 @@ export const getPPLWorkerProxyService = (): PPLWorkerProxyService => {
     workerProxyService = new PPLWorkerProxyService();
   }
   return workerProxyService;
+};
+
+/**
+ * Initialize the PPL worker proxy service
+ */
+export const initializePPLWorkerProxyService = (): PPLWorkerProxyService => {
+  return getPPLWorkerProxyService();
+};
+
+/**
+ * Stop the PPL worker proxy service
+ */
+export const stopPPLWorkerProxyService = (): void => {
+  if (workerProxyService) {
+    workerProxyService.dispose();
+    workerProxyService = null;
+  }
 };
