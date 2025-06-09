@@ -30,52 +30,121 @@
 
 const path = require('path');
 
-const createLangWorkerConfig = (lang) => ({
-  mode: 'production',
-  entry: path.resolve(__dirname, 'src', lang, 'worker', `${lang}.worker.ts`),
-  output: {
-    path: path.resolve(__dirname, 'target/public'),
-    filename: `${lang}.editor.worker.js`,
-    hashFunction: 'Xxh64',
-  },
+const commonConfig = {
+  mode: 'development',
+  devtool: 'source-map',
   resolve: {
-    modules: ['node_modules'],
-    extensions: ['.js', '.ts', '.tsx'],
+    extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    alias: {
+      'monaco-editor': path.resolve(__dirname, 'node_modules/monaco-editor')
+    }
   },
-  stats: 'errors-only',
   module: {
     rules: [
       {
-        test: /\.(js|ts)$/,
-        exclude: /node_modules/,
+        test: /\.tsx?$/,
         use: {
           loader: 'babel-loader',
           options: {
-            babelrc: false,
-            presets: [require.resolve('@osd/babel-preset/webpack_preset')],
-          },
+            presets: [
+              ['@babel/preset-env', { 
+                targets: { node: 'current' },
+                modules: 'commonjs'
+              }],
+              '@babel/preset-typescript'
+            ],
+            plugins: [
+              '@babel/plugin-proposal-class-properties',
+              '@babel/plugin-proposal-optional-chaining',
+              '@babel/plugin-transform-modules-commonjs',
+              '@babel/plugin-transform-class-static-block'
+            ]
+          }
         },
+        exclude: [
+          /node_modules/,
+          /\.generated/
+        ],
       },
-      // Process CSS files for Monaco editor
+      {
+        test: /\.generated.*\.ts$/,
+        use: 'raw-loader',
+      },
+      {
+        test: /\.mjs$/,
+        include: /node_modules/,
+        type: 'javascript/auto',
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: [
+              ['@babel/preset-env', { 
+                targets: { node: 'current' },
+                modules: 'commonjs'
+              }]
+            ],
+            plugins: [
+              '@babel/plugin-proposal-class-properties',
+              '@babel/plugin-transform-class-static-block'
+            ]
+          }
+        }
+      },
+      {
+        test: /\.js$/,
+        exclude: /node_modules/,
+        resolve: {
+          // Remove fullySpecified property as it's not valid in this webpack version
+        }
+      },
       {
         test: /\.css$/,
         use: ['style-loader', 'css-loader'],
       },
-      // Handle font files for codicons
       {
-        test: /\.(woff|woff2|ttf|eot)$/,
-        use: [
-          {
-            loader: 'file-loader',
-            options: {
-              name: '[name].[ext]',
-              outputPath: 'fonts/',
-            },
-          },
-        ],
+        test: /\.(woff|woff2|eot|ttf|otf)$/,
+        use: 'file-loader',
       },
     ],
   },
-});
+};
 
-module.exports = [createLangWorkerConfig('xjson'), createLangWorkerConfig('json')];
+module.exports = [
+  {
+    ...commonConfig,
+    entry: './src/index.ts',
+    output: {
+      path: path.resolve(__dirname, 'target/public'),
+      filename: 'monaco.editor.bundle.js',
+      library: 'monaco',
+      libraryTarget: 'umd',
+    },
+  },
+  {
+    ...commonConfig,
+    entry: './src/ppl/worker/ppl.worker.ts',
+    output: {
+      path: path.resolve(__dirname, 'target/public'),
+      filename: 'ppl.editor.worker.js',
+      globalObject: 'self',
+    },
+  },
+  {
+    ...commonConfig,
+    entry: './src/json/worker/json.worker.ts',
+    output: {
+      path: path.resolve(__dirname, 'target/public'),
+      filename: 'json.editor.worker.js',
+      globalObject: 'self',
+    },
+  },
+  {
+    ...commonConfig,
+    entry: './src/xjson/worker/xjson.worker.ts',
+    output: {
+      path: path.resolve(__dirname, 'target/public'),
+      filename: 'xjson.editor.worker.js',
+      globalObject: 'self',
+    },
+  },
+];

@@ -8,23 +8,23 @@
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
-// Basic XJSON worker implementation
-class XJSONWorker {
+// Basic PPL worker implementation
+class PPLWorker {
   constructor(ctx: any, createData: any) {
-    // Initialize the XJSON worker
+    // Initialize the PPL worker
   }
 
   doValidation(uri: string): Promise<monaco.editor.IMarkerData[]> {
-    // Basic XJSON validation logic
+    // Basic PPL validation logic
     return Promise.resolve([]);
   }
 
   doComplete(uri: string, position: monaco.Position): Promise<monaco.languages.CompletionList> {
-    // Basic XJSON completion logic
+    // Basic PPL completion logic
     return Promise.resolve({
       suggestions: []
     });
   }
 }
 
-export default XJSONWorker;
+export default PPLWorker;
