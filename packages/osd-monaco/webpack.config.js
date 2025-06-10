@@ -36,14 +36,10 @@ const commonConfig = {
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs'],
     alias: {
-      'monaco-editor': path.resolve(__dirname, '../../node_modules/monaco-editor')
+      'monaco-editor': path.resolve(__dirname, '../../node_modules/monaco-editor'),
     },
-    // Resolve modules from both source and target directories
-    modules: [
-      path.resolve(__dirname, 'target'),
-      path.resolve(__dirname, 'src'),
-      'node_modules'
-    ]
+    // Resolve modules prioritizing source over target
+    modules: [path.resolve(__dirname, 'src'), 'node_modules'],
   },
   module: {
     rules: [
@@ -53,49 +49,53 @@ const commonConfig = {
           loader: 'babel-loader',
           options: {
             presets: [
-              ['@babel/preset-env', { 
-                targets: { 
-                  browsers: ['last 2 versions', 'ie >= 11']
+              [
+                '@babel/preset-env',
+                {
+                  targets: {
+                    browsers: ['last 2 versions', 'ie >= 11'],
+                  },
+                  modules: false,
                 },
-                modules: false
-              }],
-              '@babel/preset-typescript'
+              ],
+              '@babel/preset-typescript',
             ],
             plugins: [
               '@babel/plugin-proposal-class-properties',
               '@babel/plugin-proposal-optional-chaining',
               '@babel/plugin-transform-class-static-block',
-              '@babel/plugin-transform-private-methods'
-            ]
-          }
+              '@babel/plugin-transform-private-methods',
+            ],
+          },
         },
-        exclude: [
-          /node_modules(?!\/antlr4ng)/,
-        ],
+        exclude: [/node_modules(?!\/antlr4ng)/, /target/, path.resolve(__dirname, 'target')],
       },
       {
         // Handle all JavaScript files with Babel transformation
         test: /\.js$/,
-        exclude: /node_modules(?!\/antlr4ng)/,
+        exclude: [/node_modules(?!\/antlr4ng)/, path.resolve(__dirname, 'target')],
         use: {
           loader: 'babel-loader',
           options: {
             presets: [
-              ['@babel/preset-env', { 
-                targets: { 
-                  browsers: ['last 2 versions', 'ie >= 11']
+              [
+                '@babel/preset-env',
+                {
+                  targets: {
+                    browsers: ['last 2 versions', 'ie >= 11'],
+                  },
+                  modules: false,
                 },
-                modules: false
-              }]
+              ],
             ],
             plugins: [
               '@babel/plugin-proposal-class-properties',
               '@babel/plugin-proposal-optional-chaining',
               '@babel/plugin-transform-class-static-block',
-              '@babel/plugin-transform-private-methods'
-            ]
-          }
-        }
+              '@babel/plugin-transform-private-methods',
+            ],
+          },
+        },
       },
       {
         // Handle antlr4ng and monaco-editor modules specifically
@@ -105,48 +105,54 @@ const commonConfig = {
           loader: 'babel-loader',
           options: {
             presets: [
-              ['@babel/preset-env', { 
-                targets: { 
-                  browsers: ['last 2 versions', 'ie >= 11']
+              [
+                '@babel/preset-env',
+                {
+                  targets: {
+                    browsers: ['last 2 versions', 'ie >= 11'],
+                  },
+                  modules: false,
                 },
-                modules: false
-              }]
+              ],
             ],
             plugins: [
               '@babel/plugin-proposal-class-properties',
               '@babel/plugin-proposal-optional-chaining',
               '@babel/plugin-transform-class-static-block',
-              '@babel/plugin-transform-private-methods'
-            ]
-          }
-        }
+              '@babel/plugin-transform-private-methods',
+            ],
+          },
+        },
       },
       {
         // Handle ANTLR generated TypeScript files specifically
         test: /\.ts$/,
         include: [
           path.resolve(__dirname, 'src/ppl/.generated'),
-          path.resolve(__dirname, 'src/sql/.generated')
+          path.resolve(__dirname, 'src/sql/.generated'),
         ],
         use: {
           loader: 'babel-loader',
           options: {
             presets: [
-              ['@babel/preset-env', { 
-                targets: { 
-                  browsers: ['last 2 versions', 'ie >= 11']
+              [
+                '@babel/preset-env',
+                {
+                  targets: {
+                    browsers: ['last 2 versions', 'ie >= 11'],
+                  },
+                  modules: false,
                 },
-                modules: false
-              }],
-              '@babel/preset-typescript'
+              ],
+              '@babel/preset-typescript',
             ],
             plugins: [
               '@babel/plugin-proposal-class-properties',
               '@babel/plugin-transform-class-static-block',
-              '@babel/plugin-transform-private-methods'
-            ]
-          }
-        }
+              '@babel/plugin-transform-private-methods',
+            ],
+          },
+        },
       },
       {
         test: /\.css$/,
