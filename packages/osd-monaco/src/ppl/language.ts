@@ -5,15 +5,13 @@
 
 import { monaco } from '../monaco';
 import { ID } from './constants';
-import { getPPLWorkerProxyService } from './worker_proxy_service';
+import { WorkerProxyService } from './worker_proxy_service';
 import { registerWorker } from '../worker_store';
-// @ts-ignore
-import pplWorkerSrc from '!!raw-loader!../../target/public/ppl.editor.worker.js';
+import { createPPLTokenizer } from './ppl_tokenizer';
 
-// Register PPL worker in the worker store
-registerWorker(ID, pplWorkerSrc);
+const wps = new WorkerProxyService();
 
-const OWNER = 'PPL_LANGUAGE_SERVICE';
+const OWNER = 'PPL_GRAMMAR_CHECKER';
 
 /**
  * PPL Language Configuration for Monaco
@@ -53,68 +51,100 @@ const createPPLLanguageConfiguration = (): monaco.languages.LanguageConfiguratio
 });
 
 /**
- * PPL Monarch Language Definition
+ * Set up ANTLR-based tokenizer for PPL syntax highlighting
  */
-const createPPLMonarchLanguage = (): monaco.languages.IMonarchLanguage => ({
-  tokenizer: {
-    root: [
-      // Commands
-      [/\b(SEARCH|DESCRIBE|SHOW|FROM|WHERE|FIELDS|RENAME|STATS|DEDUP|SORT|EVAL|HEAD|TOP|RARE|PARSE|AS|BY)\b/i, 'keyword'],
-      
-      // Functions
-      [/\b(abs|ceil|floor|round|sqrt|log|exp|sin|cos|tan|avg|count|sum|min|max|first|last)\b/i, 'function'],
-      
-      // Operators
-      [/[=!<>]+/, 'operator'],
-      [/[+\-*/%]/, 'operator'],
-      [/\b(AND|OR|NOT|IN|LIKE|BETWEEN)\b/i, 'operator'],
-      
-      // Strings
-      [/"([^"\\]|\\.)*$/, 'string.invalid'],
-      [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }],
-      [/'([^'\\]|\\.)*$/, 'string.invalid'],
-      [/'/, { token: 'string.quote', bracket: '@open', next: '@string_single' }],
-      
-      // Numbers
-      [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
-      [/\d+/, 'number'],
-      
-      // Identifiers
-      [/[a-zA-Z_][a-zA-Z0-9_]*/, 'identifier'],
-      
-      // Whitespace
-      [/[ \t\r\n]+/, 'white'],
-      
-      // Comments
-      [/\/\/.*$/, 'comment'],
-      [/\/\*/, 'comment', '@comment'],
-      
-      // Delimiters
-      [/[()[\]{}]/, '@brackets'],
-      [/[,;]/, 'delimiter'],
-      [/\|/, 'delimiter.pipe'],
-    ],
-    
-    string: [
-      [/[^\\"]+/, 'string'],
-      [/\\./, 'string.escape.invalid'],
-      [/"/, { token: 'string.quote', bracket: '@close', next: '@pop' }],
-    ],
-    
-    string_single: [
-      [/[^\\']+/, 'string'],
-      [/\\./, 'string.escape.invalid'],
-      [/'/, { token: 'string.quote', bracket: '@close', next: '@pop' }],
-    ],
-    
-    comment: [
-      [/[^\/*]+/, 'comment'],
-      [/\/\*/, 'comment', '@push'],
-      [/\*\//, 'comment', '@pop'],
-      [/[\/*]/, 'comment'],
-    ],
-  },
-});
+const setupANTLRTokenizer = () => {
+  const tokenizer = createPPLTokenizer();
+
+  // Register a token provider that uses ANTLR tokenization
+  monaco.languages.setTokensProvider(ID, {
+    getInitialState: () => {
+      const state = {
+        clone: () => state,
+        equals: () => true,
+      };
+      return state;
+    },
+
+    tokenize: (line: string, state: any) => {
+      const tokens = tokenizer.tokenize(line);
+      const monacoTokens: monaco.languages.IToken[] = [];
+
+      for (const token of tokens) {
+        // Map ANTLR token types to Monaco token classes
+        let tokenClass = 'identifier';
+
+        switch (token.type.toLowerCase()) {
+          case 'search':
+          case 'describe':
+          case 'show':
+          case 'from':
+          case 'where':
+          case 'fields':
+          case 'rename':
+          case 'stats':
+          case 'dedup':
+          case 'sort':
+          case 'eval':
+          case 'head':
+          case 'top':
+          case 'rare':
+          case 'parse':
+          case 'as':
+          case 'by':
+            tokenClass = 'keyword';
+            break;
+          case 'abs':
+          case 'ceil':
+          case 'floor':
+          case 'round':
+          case 'sqrt':
+          case 'log':
+          case 'exp':
+          case 'sin':
+          case 'cos':
+          case 'tan':
+          case 'avg':
+          case 'count':
+          case 'sum':
+          case 'min':
+          case 'max':
+          case 'first':
+          case 'last':
+            tokenClass = 'function';
+            break;
+          case 'string':
+            tokenClass = 'string';
+            break;
+          case 'number':
+            tokenClass = 'number';
+            break;
+          case 'comment':
+            tokenClass = 'comment';
+            break;
+          case 'operator':
+            tokenClass = 'operator';
+            break;
+          case 'delimiter':
+            tokenClass = 'delimiter';
+            break;
+          default:
+            tokenClass = 'identifier';
+        }
+
+        monacoTokens.push({
+          startIndex: token.startIndex,
+          scopes: tokenClass,
+        });
+      }
+
+      return {
+        tokens: monacoTokens,
+        endState: state,
+      };
+    },
+  });
+};
 
 /**
  * Register PPL language with Monaco editor
@@ -131,132 +161,58 @@ export const registerPPLLanguage = () => {
   // Set language configuration
   monaco.languages.setLanguageConfiguration(ID, createPPLLanguageConfiguration());
 
-  // Set monarch tokenizer
-  monaco.languages.setMonarchTokensProvider(ID, createPPLMonarchLanguage());
+  // Set ANTLR-based tokenizer
+  setupANTLRTokenizer();
 
-  // Set up language features when the language is first used
   monaco.languages.onLanguage(ID, async () => {
-    const workerProxyService = getPPLWorkerProxyService();
-    
-    try {
-      await workerProxyService.setup();
-      
-      // Register completion provider
-      monaco.languages.registerCompletionItemProvider(ID, {
-        provideCompletionItems: async (model, position, context, token) => {
-          try {
-            const code = model.getValue();
-            const offset = model.getOffsetAt(position);
-            const completions = await workerProxyService.getCompletions(code, offset);
-            
-            return {
-              suggestions: completions.map(completion => ({
-                ...completion,
-                range: completion.range || new monaco.Range(
-                  position.lineNumber,
-                  position.column,
-                  position.lineNumber,
-                  position.column
-                ),
-              })),
-            };
-          } catch (error) {
-            console.error('PPL completion provider error:', error);
-            return { suggestions: [] };
-          }
-        },
-      });
-
-      // Register hover provider
-      monaco.languages.registerHoverProvider(ID, {
-        provideHover: async (model, position, token) => {
-          try {
-            const word = model.getWordAtPosition(position);
-            if (!word) return null;
-
-            // Provide basic hover information for PPL keywords
-            const pplKeywords = [
-              'SEARCH', 'DESCRIBE', 'SHOW', 'FROM', 'WHERE', 'FIELDS', 'RENAME', 'STATS',
-              'DEDUP', 'SORT', 'EVAL', 'HEAD', 'TOP', 'RARE', 'PARSE', 'AS', 'BY'
-            ];
-
-            if (pplKeywords.includes(word.word.toUpperCase())) {
-              return {
-                range: new monaco.Range(
-                  position.lineNumber,
-                  word.startColumn,
-                  position.lineNumber,
-                  word.endColumn
-                ),
-                contents: [
-                  { value: `**${word.word.toUpperCase()}**` },
-                  { value: `PPL ${word.word.toLowerCase()} command` },
-                ],
-              };
-            }
-
-            return null;
-          } catch (error) {
-            console.error('PPL hover provider error:', error);
-            return null;
-          }
-        },
-      });
-
-      // Set up error markers
-      setupErrorMarkers();
-      
-      console.log('PPL language features registered successfully');
-    } catch (error) {
-      console.error('Failed to setup PPL language features:', error);
-    }
+    return wps.setup();
   });
 };
 
-/**
- * Set up error markers for PPL syntax validation
- */
-const setupErrorMarkers = () => {
+export const registerGrammarChecker = () => {
   const allDisposables: monaco.IDisposable[] = [];
-  const workerProxyService = getPPLWorkerProxyService();
 
   const updateAnnotations = async (model: monaco.editor.IModel): Promise<void> => {
-    if (model.isDisposed() || model.getLanguageId() !== ID) {
+    if (model.isDisposed()) {
       return;
     }
-
-    try {
-      const markers = await workerProxyService.getAnnotations(model.uri);
-      monaco.editor.setModelMarkers(model, OWNER, markers);
-    } catch (error) {
-      console.error('Failed to update PPL annotations:', error);
-      // Clear markers on error
-      monaco.editor.setModelMarkers(model, OWNER, []);
+    const parseResult = await wps.getAnnos(model.uri);
+    if (!parseResult) {
+      return;
     }
+    const { annotations } = parseResult;
+    monaco.editor.setModelMarkers(
+      model,
+      OWNER,
+      annotations.map(({ at, text, type }) => {
+        const { column, lineNumber } = model.getPositionAt(at);
+        return {
+          startLineNumber: lineNumber,
+          startColumn: column,
+          endLineNumber: lineNumber,
+          endColumn: column,
+          message: text,
+          severity: type === 'error' ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
+        };
+      })
+    );
   };
 
   const onModelAdd = (model: monaco.editor.IModel) => {
     if (model.getLanguageId() === ID) {
       allDisposables.push(
         model.onDidChangeContent(async () => {
-          // Debounce validation to avoid excessive worker calls
-          setTimeout(() => updateAnnotations(model), 500);
+          updateAnnotations(model);
         })
       );
 
-      // Initial validation
       updateAnnotations(model);
     }
   };
-
-  // Listen for new models
   allDisposables.push(monaco.editor.onDidCreateModel(onModelAdd));
-
-  // Validate existing models
-  monaco.editor.getModels().forEach(onModelAdd);
-
   return () => {
-    allDisposables.forEach(d => d.dispose());
+    wps.stop();
+    allDisposables.forEach((d) => d.dispose());
   };
 };
 
@@ -265,7 +221,7 @@ const setupErrorMarkers = () => {
  */
 export const createPPLModel = (content: string, uri?: monaco.Uri): monaco.editor.ITextModel => {
   const modelUri = uri || monaco.Uri.parse(`ppl://model${Date.now()}.ppl`);
-  
+
   // Check if model already exists
   const existingModel = monaco.editor.getModel(modelUri);
   if (existingModel) {
@@ -277,33 +233,17 @@ export const createPPLModel = (content: string, uri?: monaco.Uri): monaco.editor
   return monaco.editor.createModel(content, ID, modelUri);
 };
 
-/**
- * Initialize PPL language support
- */
-export const initializePPLLanguage = async (): Promise<void> => {
-  registerPPLLanguage();
-  
-  // Pre-initialize the worker proxy service
-  const workerProxyService = getPPLWorkerProxyService();
-  await workerProxyService.setup();
-  
-  console.log('PPL language support initialized');
-};
+// Register language against shared monaco instance.
+registerPPLLanguage();
 
-/**
- * Cleanup PPL language support
- */
-export const cleanupPPLLanguage = (): void => {
-  // Clear all PPL-related markers
-  monaco.editor.getModels().forEach(model => {
-    if (model.getLanguageId() === ID) {
-      monaco.editor.setModelMarkers(model, OWNER, []);
-    }
-  });
+// register ppl worker to the worker map.
+try {
+  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const workerSrc = require('!!raw-loader!../../target/public/ppl.editor.worker.js');
+  registerWorker(ID, workerSrc);
+} catch (e) {
+  // Worker file not available at build time - will be loaded at runtime
+}
 
-  // Stop worker proxy service
-  const workerProxyService = getPPLWorkerProxyService();
-  workerProxyService.stop();
-  
-  console.log('PPL language support cleaned up');
-};
+registerGrammarChecker();

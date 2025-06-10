@@ -179,7 +179,7 @@ module.exports = [
   },
   {
     ...commonConfig,
-    entry: './src/ppl/worker/ppl.worker.ts',
+    entry: './src/ppl/worker/ppl_worker.ts',
     output: {
       path: path.resolve(__dirname, 'target/public'),
       filename: 'ppl.editor.worker.js',
