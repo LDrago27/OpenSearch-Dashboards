@@ -6,6 +6,7 @@
 import * as antlr from 'antlr4ng';
 import { OpenSearchPPLLexer } from './.generated/OpenSearchPPLLexer';
 import { OpenSearchPPLParser } from './.generated/OpenSearchPPLParser';
+import { PPLSyntaxErrorListener } from './ppl_error_listener';
 
 export interface PPLToken {
   type: string;
@@ -41,6 +42,7 @@ export class PPLTokenizer {
    * Tokenize PPL code into tokens using ANTLR lexer
    */
   tokenize(code: string): PPLToken[] {
+    console.log('PPL Tokenizer: tokenize() called with code:', code);
     const tokens: PPLToken[] = [];
 
     try {
@@ -50,11 +52,14 @@ export class PPLTokenizer {
       tokenStream.fill();
 
       const antlrTokens = tokenStream.getTokens();
+      console.log('PPL Tokenizer: ANTLR produced', antlrTokens.length, 'tokens');
 
       for (const token of antlrTokens) {
         if (token.type !== antlr.Token.EOF) {
+          const tokenTypeName = this.getTokenTypeName(token.type, lexer);
+          console.log('PPL Tokenizer: Token -', tokenTypeName, token.text);
           tokens.push({
-            type: this.getTokenTypeName(token.type, lexer),
+            type: tokenTypeName,
             value: token.text || '',
             startIndex: token.start,
             stopIndex: token.stop,
@@ -64,9 +69,10 @@ export class PPLTokenizer {
         }
       }
     } catch (error) {
-      // Fallback for parsing errors
+      console.error('PPL Tokenizer: Error during tokenization:', error);
     }
 
+    console.log('PPL Tokenizer: Returning', tokens.length, 'tokens');
     return tokens;
   }
 
@@ -74,27 +80,70 @@ export class PPLTokenizer {
    * Validate PPL code using ANTLR parser
    */
   validate(code: string): PPLValidationResult {
-    const errors: string[] = [];
+    console.log('PPL Tokenizer: validate() called with code:', code);
 
     try {
       const inputStream = antlr.CharStream.fromString(code);
       const lexer = new OpenSearchPPLLexer(inputStream);
+
+      // Use the dedicated PPL error listener for lexer
+      const lexerErrorListener = new PPLSyntaxErrorListener();
+      lexer.removeErrorListeners();
+      lexer.addErrorListener(lexerErrorListener);
+
       const tokenStream = new antlr.CommonTokenStream(lexer);
       const parser = new OpenSearchPPLParser(tokenStream);
 
-      // Basic validation - try to parse
+      // Use the dedicated PPL error listener for parser
+      const parserErrorListener = new PPLSyntaxErrorListener();
+      parser.removeErrorListeners();
+      parser.addErrorListener(parserErrorListener);
+
+      console.log('PPL Tokenizer: Attempting to parse...');
       parser.root();
 
+      // Collect all errors from both lexer and parser
+      const allErrors = [...lexerErrorListener.errors, ...parserErrorListener.errors];
+
+      if (allErrors.length > 0) {
+        console.log('PPL Tokenizer: Parsing failed with', allErrors.length, 'errors');
+
+        // Convert syntax errors to string messages
+        const errorMessages = allErrors.map(
+          (error) => `Parse error at line ${error.line}, column ${error.column}: ${error.message}`
+        );
+
+        console.log('PPL Tokenizer: Error details:', errorMessages);
+        return {
+          isValid: false,
+          errors: errorMessages,
+        };
+      }
+
+      // Check if the parser consumed all tokens
+      const currentToken = parser.getCurrentToken();
+      if (currentToken && currentToken.type !== antlr.Token.EOF) {
+        console.log(
+          'PPL Tokenizer: Parser did not consume all input, current token:',
+          currentToken.text
+        );
+        return {
+          isValid: false,
+          errors: [`Unexpected token: ${currentToken.text}`],
+        };
+      }
+
+      console.log('PPL Tokenizer: Parsing successful - code is valid');
       return {
         isValid: true,
         errors: [],
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      errors.push(`Parsing error: ${errorMessage}`);
+      console.log('PPL Tokenizer: Parsing failed with exception:', errorMessage);
       return {
         isValid: false,
-        errors,
+        errors: [`Parsing exception: ${errorMessage}`],
       };
     }
   }

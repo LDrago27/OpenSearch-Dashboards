@@ -19,8 +19,10 @@ export const createParser = (): Parser => {
   const tokenizer = createPPLTokenizer();
 
   return (text: string): ParseResult => {
+    console.log('PPL Grammar: Validating text:', text);
     try {
       const result = tokenizer.validate(text);
+      console.log('PPL Grammar: Validation result:', result);
 
       if (!result.isValid && result.errors && result.errors.length > 0) {
         const annotations = result.errors.map((error: string) => ({
@@ -29,11 +31,14 @@ export const createParser = (): Parser => {
           type: 'error' as const,
         }));
 
+        console.log('PPL Grammar: Returning error annotations:', annotations);
         return { annotations };
       }
 
+      console.log('PPL Grammar: Text is valid, no errors');
       return { annotations: [] };
     } catch (error) {
+      console.error('PPL Grammar: Validation failed with exception:', error);
       // If validation fails completely, return a general error
       return {
         annotations: [

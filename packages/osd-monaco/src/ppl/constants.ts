@@ -3,4 +3,4 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const ID = 'ppl';
+export const ID = 'PPL';
