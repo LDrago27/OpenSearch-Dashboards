@@ -14,29 +14,43 @@ root
 
 // statement
 pplStatement
-   : dmlStatement
-   ;
-
-dmlStatement
-   : queryStatement
+   : explainStatement
+   | queryStatement
    ;
 
 queryStatement
    : pplCommands (PIPE commands)*
    ;
 
+explainStatement
+    : EXPLAIN (explainMode)? queryStatement
+    ;
+
+explainMode
+    : SIMPLE
+    | STANDARD
+    | COST
+    | EXTENDED
+    ;
+
+subSearch
+   : searchCommand (PIPE commands)*
+   ;
+
 // commands
 pplCommands
-   : searchCommand
-   | describeCommand
+   : describeCommand
    | showDataSourcesCommand
+   | searchCommand
    ;
 
 commands
    : whereCommand
    | fieldsCommand
+   | joinCommand
    | renameCommand
    | statsCommand
+   | eventstatsCommand
    | dedupCommand
    | sortCommand
    | evalCommand
@@ -46,17 +60,49 @@ commands
    | grokCommand
    | parseCommand
    | patternsCommand
+   | lookupCommand
    | kmeansCommand
    | adCommand
    | mlCommand
+   | fillnullCommand
+   | trendlineCommand
+   | appendcolCommand
+   | expandCommand
+   | flattenCommand
+   ;
+
+commandName
+   : SEARCH
+   | DESCRIBE
+   | SHOW
+   | WHERE
+   | FIELDS
+   | JOIN
+   | RENAME
+   | STATS
+   | EVENTSTATS
+   | DEDUP
+   | SORT
+   | EVAL
+   | HEAD
+   | TOP
+   | RARE
+   | GROK
+   | PARSE
+   | PATTERNS
+   | LOOKUP
+   | KMEANS
+   | AD
+   | ML
+   | FILLNULL
+   | EXPAND
+   | FLATTEN
+   | TRENDLINE
+   | EXPLAIN
    ;
 
 searchCommand
-   : (SEARCH)? fromClause logicalExpression        # searchFromFilter
-   | (SEARCH)? logicalExpression fromClause        # searchFilterFrom
-   | (SEARCH)? fromClause                          # searchFrom
-   | (SEARCH)? logicalExpression                   # searchFilterOnly
-   | (SEARCH)?                                     # searchEmpty
+   : (SEARCH)? (logicalExpression)* fromClause (logicalExpression)*     # searchFrom
    ;
 
 describeCommand
@@ -83,6 +129,10 @@ statsCommand
    : STATS (PARTITIONS EQUAL partitions = integerLiteral)? (ALLNUM EQUAL allnum = booleanLiteral)? (DELIM EQUAL delim = stringLiteral)? statsAggTerm (COMMA statsAggTerm)* (statsByClause)? (DEDUP_SPLITVALUES EQUAL dedupsplit = booleanLiteral)?
    ;
 
+eventstatsCommand
+   : EVENTSTATS eventstatsAggTerm (COMMA eventstatsAggTerm)* (statsByClause)?
+   ;
+
 dedupCommand
    : DEDUP (number = integerLiteral)? fieldList (KEEPEMPTY EQUAL keepempty = booleanLiteral)? (CONSECUTIVE EQUAL consecutive = booleanLiteral)?
    ;
@@ -100,11 +150,11 @@ headCommand
    ;
 
 topCommand
-   : TOP (number = integerLiteral)? fieldList (byClause)?
+   : TOP (number = integerLiteral)? (COUNTFIELD EQUAL countfield = stringLiteral)? (SHOWCOUNT EQUAL showcount = booleanLiteral)? fieldList (byClause)?
    ;
 
 rareCommand
-   : RARE fieldList (byClause)?
+   : RARE (number = integerLiteral)? (COUNTFIELD EQUAL countfield = stringLiteral)? (SHOWCOUNT EQUAL showcount = booleanLiteral)? fieldList (byClause)?
    ;
 
 grokCommand
@@ -115,18 +165,92 @@ parseCommand
    : PARSE (source_field = expression) (pattern = stringLiteral)
    ;
 
-patternsCommand
-   : PATTERNS (patternsParameter)* (source_field = expression)
-   ;
-
-patternsParameter
-   : (NEW_FIELD EQUAL new_field = stringLiteral)
-   | (PATTERN EQUAL pattern = stringLiteral)
-   ;
-
 patternsMethod
    : PUNCT
    | REGEX
+   ;
+
+patternsCommand
+   : PATTERNS (source_field = expression) (statsByClause)? (METHOD EQUAL method = patternMethod)? (MODE EQUAL pattern_mode = patternMode)? (MAX_SAMPLE_COUNT EQUAL max_sample_count = integerLiteral)? (BUFFER_LIMIT EQUAL buffer_limit = integerLiteral)? (NEW_FIELD EQUAL new_field = stringLiteral)? (patternsParameter)*
+   ;
+
+patternsParameter
+   : (PATTERN EQUAL pattern = stringLiteral)
+   | (VARIABLE_COUNT_THRESHOLD EQUAL variable_count_threshold = integerLiteral)
+   | (FREQUENCY_THRESHOLD_PERCENTAGE EQUAL frequency_threshold_percentage = decimalLiteral)
+   ;
+
+patternMethod
+   : SIMPLE_PATTERN
+   | BRAIN
+   ;
+
+patternMode
+   : LABEL
+   | AGGREGATION
+   ;
+
+// lookup
+lookupCommand
+   : LOOKUP tableSource lookupMappingList ((APPEND | REPLACE) outputCandidateList)?
+   ;
+
+lookupMappingList
+   : lookupPair (COMMA lookupPair)*
+   ;
+
+outputCandidateList
+   : lookupPair (COMMA lookupPair)*
+   ;
+
+ // The lookup pair will generate a K-V pair.
+ // The format is Key -> Alias(outputFieldName, inputField), Value -> outputField. For example:
+ // 1. When lookupPair is "name AS cName", the key will be Alias(cName, Field(name)), the value will be Field(cName)
+ // 2. When lookupPair is "dept", the key is Alias(dept, Field(dept)), value is Field(dept)
+lookupPair
+   : inputField = fieldExpression (AS outputField = fieldExpression)?
+   ;
+
+fillnullCommand
+   : FILLNULL fillNullWith
+   | FILLNULL fillNullUsing
+   ;
+
+fillNullWith
+   : WITH replacement = valueExpression (IN fieldList)?
+   ;
+
+fillNullUsing
+   : USING replacementPair (COMMA replacementPair)*
+   ;
+
+replacementPair
+   : fieldExpression EQUAL replacement = valueExpression
+   ;
+
+trendlineCommand
+   : TRENDLINE (SORT sortField)? trendlineClause (trendlineClause)*
+   ;
+
+trendlineClause
+   : trendlineType LT_PRTHS numberOfDataPoints = integerLiteral COMMA field = fieldExpression RT_PRTHS (AS alias = qualifiedName)?
+   ;
+
+trendlineType
+   : SMA
+   | WMA
+   ;
+
+expandCommand
+    : EXPAND fieldExpression (AS alias = qualifiedName)?
+    ;
+
+flattenCommand
+   : FLATTEN fieldExpression (AS aliases = identifierSeq)?
+   ;
+
+appendcolCommand
+   : APPENDCOL (OVERRIDE EQUAL override = booleanLiteral)? LT_SQR_PRTHS commands (PIPE commands)* RT_SQR_PRTHS
    ;
 
 kmeansCommand
@@ -168,14 +292,51 @@ mlArg
 
 // clauses
 fromClause
-   : SOURCE EQUAL tableSourceClause
-   | INDEX EQUAL tableSourceClause
+   : SOURCE EQUAL tableOrSubqueryClause
+   | INDEX EQUAL tableOrSubqueryClause
    | SOURCE EQUAL tableFunction
    | INDEX EQUAL tableFunction
    ;
 
+tableOrSubqueryClause
+   : LT_SQR_PRTHS subSearch RT_SQR_PRTHS (AS alias = qualifiedName)?
+   | tableSourceClause
+   ;
+
 tableSourceClause
-   : tableSource (COMMA tableSource)*
+   : tableSource (COMMA tableSource)* (AS alias = qualifiedName)?
+   ;
+
+// join
+joinCommand
+   : (joinType) JOIN sideAlias joinHintList? joinCriteria? right = tableOrSubqueryClause
+   ;
+
+joinType
+   : INNER?
+   | CROSS
+   | LEFT OUTER?
+   | RIGHT OUTER?
+   | FULL OUTER?
+   | LEFT? SEMI
+   | LEFT? ANTI
+   ;
+
+sideAlias
+   : (LEFT EQUAL leftAlias = qualifiedName)? COMMA? (RIGHT EQUAL rightAlias = qualifiedName)?
+   ;
+
+joinCriteria
+   : ON logicalExpression
+   ;
+
+joinHintList
+   : hintPair (COMMA? hintPair)*
+   ;
+
+hintPair
+   : leftHintKey = LEFT_HINT DOT ID EQUAL leftHintValue = ident             #leftHint
+   | rightHintKey = RIGHT_HINT DOT ID EQUAL rightHintValue = ident          #rightHint
    ;
 
 renameClasue
@@ -190,6 +351,7 @@ statsByClause
    : BY fieldList
    | BY bySpanClause
    | BY bySpanClause COMMA fieldList
+   | BY fieldList COMMA bySpanClause
    ;
 
 bySpanClause
@@ -205,7 +367,32 @@ sortbyClause
    ;
 
 evalClause
-   : fieldExpression EQUAL expression
+   : fieldExpression EQUAL logicalExpression
+   ;
+
+eventstatsAggTerm
+   : windowFunction (AS alias = wcFieldExpression)?
+   ;
+
+windowFunction
+   : windowFunctionName LT_PRTHS functionArgs RT_PRTHS
+   ;
+
+windowFunctionName
+   : statsFunctionName
+   | scalarWindowFunctionName
+   ;
+
+scalarWindowFunctionName
+   : ROW_NUMBER
+   | RANK
+   | DENSE_RANK
+   | PERCENT_RANK
+   | CUME_DIST
+   | FIRST
+   | LAST
+   | NTH
+   | NTILE
    ;
 
 // aggregation terms
@@ -217,9 +404,9 @@ statsAggTerm
 statsFunction
    : statsFunctionName LT_PRTHS valueExpression RT_PRTHS        # statsFunctionCall
    | COUNT LT_PRTHS RT_PRTHS                                    # countAllFunctionCall
-   | (DISTINCT_COUNT | DC) LT_PRTHS valueExpression RT_PRTHS    # distinctCountFunctionCall
-   | percentileAggFunction                                      # percentileAggFunctionCall
+   | (DISTINCT_COUNT | DC | DISTINCT_COUNT_APPROX) LT_PRTHS valueExpression RT_PRTHS    # distinctCountFunctionCall
    | takeAggFunction                                            # takeAggFunctionCall
+   | percentileApproxFunction                                   # percentileApproxFunctionCall
    ;
 
 statsFunctionName
@@ -232,80 +419,75 @@ statsFunctionName
    | VAR_POP
    | STDDEV_SAMP
    | STDDEV_POP
+   | PERCENTILE
+   | PERCENTILE_APPROX
+   | EARLIEST
+   | LATEST
    ;
 
 takeAggFunction
    : TAKE LT_PRTHS fieldExpression (COMMA size = integerLiteral)? RT_PRTHS
    ;
 
-percentileAggFunction
-   : PERCENTILE LESS value = integerLiteral GREATER LT_PRTHS aggField = fieldExpression RT_PRTHS
+percentileApproxFunction
+   : (PERCENTILE | PERCENTILE_APPROX) LT_PRTHS aggField = valueExpression
+       COMMA percent = numericLiteral (COMMA compression = numericLiteral)? RT_PRTHS
    ;
 
-// expressions
-expression
-   : logicalExpression
-   | comparisonExpression
-   | valueExpression
-   ;
+numericLiteral
+    : integerLiteral
+    | decimalLiteral
+    | doubleLiteral
+    | floatLiteral
+    ;
 
+// predicates
 logicalExpression
-   : logicalOrExpression
+   : NOT logicalExpression                                      # logicalNot
+   | left = logicalExpression AND right = logicalExpression     # logicalAnd
+   | left = logicalExpression XOR right = logicalExpression     # logicalXor
+   | left = logicalExpression OR right = logicalExpression      # logicalOr
+   | expression                                                 # logicalExpr
    ;
 
-logicalOrExpression
-   : logicalXorExpression (OR logicalXorExpression)*
-   ;
-
-logicalXorExpression  
-   : logicalAndExpression (XOR logicalAndExpression)*
-   ;
-
-logicalAndExpression
-   : logicalNotExpression (AND? logicalNotExpression)*  // Optional AND here is cleaner
-   ;
-
-logicalNotExpression
-   : NOT logicalNotExpression
-   | primaryLogicalExpression
-   ;
-
-primaryLogicalExpression
-   : comparisonExpression
-   | booleanExpression  
-   | relevanceExpression
-   | LT_PRTHS logicalExpression RT_PRTHS
-   ;
-
-comparisonExpression
-   : left = valueExpression comparisonOperator right = valueExpression  # compareExpr
-   | valueExpression IN valueList                                       # inExpr
+expression
+   : valueExpression                                            # valueExpr
+   | relevanceExpression                                        # relevanceExpr
+   | left = expression comparisonOperator right = expression    # compareExpr
+   | expression NOT? IN valueList                               # inExpr
+   | expression NOT? BETWEEN expression AND expression          # between
    ;
 
 valueExpression
-   : left = valueExpression binaryOperator = (STAR | DIVIDE | MODULE) right = valueExpression   # binaryArithmetic
-   | left = valueExpression binaryOperator = (PLUS | MINUS) right = valueExpression             # binaryArithmetic
-   | primaryExpression                                                                          # valueExpressionDefault
-   | positionFunction                                                                           # positionFunctionCall
-   | extractFunction                                                                            # extractFunctionCall
-   | getFormatFunction                                                                          # getFormatFunctionCall
-   | timestampFunction                                                                          # timestampFunctionCall
-   | LT_PRTHS valueExpression RT_PRTHS                                                          # parentheticValueExpr
+   : left = valueExpression binaryOperator = (STAR | DIVIDE | MODULE) right = valueExpression                   # binaryArithmetic
+   | left = valueExpression binaryOperator = (PLUS | MINUS) right = valueExpression                             # binaryArithmetic
+   | literalValue                                                                                               # literalValueExpr
+   | functionCall                                                                                               # functionCallExpr
+   | lambda                                                                                                     # lambdaExpr
+   | LT_SQR_PRTHS subSearch RT_SQR_PRTHS                                                                        # scalarSubqueryExpr
+   | valueExpression NOT? IN LT_SQR_PRTHS subSearch RT_SQR_PRTHS                                                # inSubqueryExpr
+   | LT_PRTHS valueExpression (COMMA valueExpression)* RT_PRTHS NOT? IN LT_SQR_PRTHS subSearch RT_SQR_PRTHS     # inSubqueryExpr
+   | EXISTS LT_SQR_PRTHS subSearch RT_SQR_PRTHS                                                                 # existsSubqueryExpr
+   | fieldExpression                                                                                            # fieldExpr
+   | LT_PRTHS logicalExpression RT_PRTHS                                                                        # nestedValueExpr
    ;
 
-primaryExpression
+functionCall
    : evalFunctionCall
    | dataTypeFunctionCall
-   | fieldExpression
-   | literalValue
+   | positionFunctionCall
+   | caseFunctionCall
+   | timestampFunctionCall
+   | extractFunctionCall
+   | getFormatFunctionCall
    ;
 
-positionFunction
+positionFunctionCall
    : positionFunctionName LT_PRTHS functionArg IN functionArg RT_PRTHS
    ;
 
-booleanExpression
-   : booleanFunctionCall
+caseFunctionCall
+   : CASE LT_PRTHS logicalExpression COMMA valueExpression (COMMA logicalExpression COMMA valueExpression)* (ELSE valueExpression)? RT_PRTHS
    ;
 
 relevanceExpression
@@ -369,12 +551,7 @@ evalFunctionCall
 
 // cast function
 dataTypeFunctionCall
-   : CAST LT_PRTHS expression AS convertedDataType RT_PRTHS
-   ;
-
-// boolean functions
-booleanFunctionCall
-   : conditionFunctionBase LT_PRTHS functionArgs RT_PRTHS
+   : CAST LT_PRTHS logicalExpression AS convertedDataType RT_PRTHS
    ;
 
 convertedDataType
@@ -388,15 +565,22 @@ convertedDataType
    | typeName = FLOAT
    | typeName = STRING
    | typeName = BOOLEAN
+   | typeName = IP
+   | typeName = JSON
    ;
 
 evalFunctionName
    : mathematicalFunctionName
    | dateTimeFunctionName
    | textFunctionName
-   | conditionFunctionBase
+   | conditionFunctionName
+   | flowControlFunctionName
    | systemFunctionName
    | positionFunctionName
+   | cryptographicFunctionName
+   | jsonFunctionName
+   | geoipFunctionName
+   | collectionFunctionName
    ;
 
 functionArgs
@@ -404,7 +588,18 @@ functionArgs
    ;
 
 functionArg
-   : (ident EQUAL)? valueExpression
+   : (ident EQUAL)? functionArgExpression
+   ;
+
+
+functionArgExpression
+   : lambda
+   | logicalExpression
+   ;
+
+lambda
+   : ident ARROW logicalExpression
+   | LT_PRTHS ident (COMMA ident)+ RT_PRTHS ARROW logicalExpression
    ;
 
 relevanceArg
@@ -456,6 +651,8 @@ relevanceFieldAndWeight
 relevanceFieldWeight
    : integerLiteral
    | decimalLiteral
+   | doubleLiteral
+   | floatLiteral
    ;
 
 relevanceField
@@ -498,6 +695,21 @@ mathematicalFunctionName
    | trigonometricFunctionName
    ;
 
+geoipFunctionName
+   : GEOIP
+   ;
+
+collectionFunctionName
+    : ARRAY
+    | ARRAY_LENGTH
+    | FORALL
+    | EXISTS
+    | FILTER
+    | TRANSFORM
+    | REDUCE
+    ;
+
+
 trigonometricFunctionName
    : ACOS
    | ASIN
@@ -509,6 +721,25 @@ trigonometricFunctionName
    | RADIANS
    | SIN
    | TAN
+   ;
+
+jsonFunctionName
+   : JSON
+   | JSON_OBJECT
+   | JSON_ARRAY
+   | JSON_ARRAY_LENGTH
+   | JSON_EXTRACT
+   | JSON_KEYS
+   | JSON_SET
+   | JSON_DELETE
+   | JSON_APPEND
+   | JSON_EXTEND
+   ;
+
+cryptographicFunctionName
+   : MD5
+   | SHA1
+   | SHA2
    ;
 
 dateTimeFunctionName
@@ -579,7 +810,7 @@ dateTimeFunctionName
    | YEARWEEK
    ;
 
-getFormatFunction
+getFormatFunctionCall
    : GET_FORMAT LT_PRTHS getFormatType COMMA functionArg RT_PRTHS
    ;
 
@@ -590,7 +821,7 @@ getFormatType
    | TIMESTAMP
    ;
 
-extractFunction
+extractFunctionCall
    : EXTRACT LT_PRTHS datetimePart FROM functionArg RT_PRTHS
    ;
 
@@ -625,7 +856,7 @@ datetimePart
    | complexDateTimePart
    ;
 
-timestampFunction
+timestampFunctionCall
    : timestampFunctionName LT_PRTHS simpleDateTimePart COMMA firstArg = functionArg COMMA secondArg = functionArg RT_PRTHS
    ;
 
@@ -635,13 +866,25 @@ timestampFunctionName
    ;
 
 // condition function return boolean value
-conditionFunctionBase
+conditionFunctionName
    : LIKE
-   | IF
    | ISNULL
    | ISNOTNULL
+   | CIDRMATCH
+   | JSON_VALID
+   | ISPRESENT
+   | ISEMPTY
+   | ISBLANK
+   | EARLIEST
+   | LATEST
+   ;
+
+// flow control function return non-boolean value
+flowControlFunctionName
+   : IF
    | IFNULL
    | NULLIF
+   | COALESCE
    ;
 
 systemFunctionName
@@ -702,6 +945,8 @@ literalValue
    | stringLiteral
    | integerLiteral
    | decimalLiteral
+   | doubleLiteral
+   | floatLiteral
    | booleanLiteral
    | datetimeLiteral //#datetime
    ;
@@ -721,6 +966,14 @@ integerLiteral
 
 decimalLiteral
    : (PLUS | MINUS)? DECIMAL_LITERAL
+   ;
+
+doubleLiteral
+   : (PLUS | MINUS)? DOUBLE_LITERAL
+   ;
+
+floatLiteral
+   : (PLUS | MINUS)? FLOAT_LITERAL
    ;
 
 booleanLiteral
@@ -806,6 +1059,11 @@ wcQualifiedName
    : wildcard (DOT wildcard)* # identsAsWildcardQualifiedName
    ;
 
+identifierSeq
+   : qualifiedName (COMMA qualifiedName)* # identsAsQualifiedNameSeq
+   | LT_PRTHS qualifiedName (COMMA qualifiedName)* RT_PRTHS # identsAsQualifiedNameSeq
+   ;
+
 ident
    : (DOT)? ID
    | BACKTICK ident BACKTICK
@@ -829,46 +1087,48 @@ keywordsCanBeId
    | timespanUnit
    | SPAN
    | evalFunctionName
+   | jsonFunctionName
    | relevanceArgName
    | intervalUnit
-   | dateTimeFunctionName
-   | textFunctionName
-   | mathematicalFunctionName
-   | positionFunctionName
-   // commands
-   | SEARCH
-   | DESCRIBE
-   | SHOW
-   | FROM
-   | WHERE
-   | FIELDS
-   | RENAME
-   | STATS
-   | DEDUP
-   | SORT
-   | EVAL
-   | HEAD
-   | TOP
-   | RARE
-   | PARSE
-   | METHOD
-   | REGEX
-   | PUNCT
-   | GROK
-   | PATTERN
-   | PATTERNS
-   | NEW_FIELD
-   | KMEANS
-   | AD
-   | ML
+   | trendlineType
+   | singleFieldRelevanceFunctionName
+   | multiFieldRelevanceFunctionName
+   | commandName
+   | collectionFunctionName
+   | comparisonOperator
+   | explainMode
    // commands assist keywords
+   | CASE
+   | ELSE
+   | IN
+   | ARROW
+   | BETWEEN
+   | EXISTS
    | SOURCE
    | INDEX
    | DESC
    | DATASOURCES
-   // CLAUSEKEYWORDS
-   | SORTBY
-   // FIELDKEYWORDSAUTO
+   | FROM
+   | PATTERN
+   | NEW_FIELD
+   | METHOD
+   | VARIABLE_COUNT_THRESHOLD
+   | FREQUENCY_THRESHOLD_PERCENTAGE
+   | MAX_SAMPLE_COUNT
+   | BUFFER_LIMIT
+   | WITH
+   | REGEX
+   | PUNCT
+   | USING
+   | CAST
+   | GET_FORMAT
+   | EXTRACT
+   | INTERVAL
+   | PLUS
+   | MINUS
+   | OVERRIDE
+   // SORT FIELD KEYWORDS
+   | AUTO
    | STR
    | IP
    | NUM
@@ -893,36 +1153,27 @@ keywordsCanBeId
    | TIME_ZONE
    | TRAINING_DATA_SIZE
    | ANOMALY_SCORE_THRESHOLD
-   // AGGREGATIONS
-   | AVG
-   | COUNT
+   | COUNTFIELD
+   | SHOWCOUNT
+   // AGGREGATIONS AND WINDOW
+   | statsFunctionName
+   | windowFunctionName
    | DISTINCT_COUNT
+   | DISTINCT_COUNT_APPROX
    | ESTDC
    | ESTDC_ERROR
-   | MAX
    | MEAN
    | MEDIAN
-   | MIN
    | MODE
    | RANGE
    | STDEV
    | STDEVP
-   | SUM
    | SUMSQ
    | VAR_SAMP
    | VAR_POP
-   | STDDEV_SAMP
-   | STDDEV_POP
-   | PERCENTILE
    | TAKE
-   | FIRST
-   | LAST
    | LIST
    | VALUES
-   | EARLIEST
-   | EARLIEST_TIME
-   | LATEST
-   | LATEST_TIME
    | PER_DAY
    | PER_HOUR
    | PER_MINUTE
@@ -931,4 +1182,15 @@ keywordsCanBeId
    | SPARKLINE
    | C
    | DC
+   // JOIN TYPE
+   | OUTER
+   | INNER
+   | CROSS
+   | LEFT
+   | RIGHT
+   | FULL
+   | SEMI
+   | ANTI
+   | LEFT_HINT
+   | RIGHT_HINT
    ;
