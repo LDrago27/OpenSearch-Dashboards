@@ -171,8 +171,9 @@ export const getSimplifiedPPLSuggestions = async ({
   position,
   query,
   services,
-}: QuerySuggestionGetFnArgs) => {
+}: QuerySuggestionGetFnArgs): Promise<any[]> => {
   if (!services || !services.appName || !indexPattern) return [];
+
   try {
     const { lineNumber, column } = position || {};
 
@@ -208,24 +209,6 @@ export const getSimplifiedPPLSuggestions = async ({
           },
           (f: string) => {
             return f.startsWith('_') ? `99` : `3`; // This devalues all the Field Names that start _ so that appear further down the autosuggest wizard
-          }
-        )
-      );
-    }
-
-    if (suggestions.suggestValuesForColumn && (isInQuotes || !isInBackQuote)) {
-      finalSuggestions.push(
-        ...formatValuesToSuggestions(
-          await fetchColumnValues(
-            indexPattern.title,
-            suggestions.suggestValuesForColumn,
-            services,
-            indexPattern,
-            datasetType
-          ).catch(() => []),
-          (val: any) => {
-            const isStringValue = typeof val === 'string';
-            return getInsertText(val?.toString() || '', 'value', isInQuotes, { isStringValue });
           }
         )
       );
@@ -334,6 +317,25 @@ export const getSimplifiedPPLSuggestions = async ({
         );
       }
     }
+
+    if (suggestions.suggestValuesForColumn && (isInQuotes || !isInBackQuote)) {
+      finalSuggestions.push(
+        ...formatValuesToSuggestions(
+          await fetchColumnValues(
+            indexPattern.title,
+            suggestions.suggestValuesForColumn,
+            services,
+            indexPattern,
+            datasetType
+          ).catch(() => []),
+          (val: any) => {
+            const isStringValue = typeof val === 'string';
+            return getInsertText(val?.toString() || '', 'value', isInQuotes, { isStringValue });
+          }
+        )
+      );
+    }
+
     return finalSuggestions;
   } catch (e) {
     return [];

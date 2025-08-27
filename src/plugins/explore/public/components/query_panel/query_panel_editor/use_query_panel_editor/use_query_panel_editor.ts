@@ -78,6 +78,7 @@ const languageConfiguration: LanguageConfiguration = {
 export interface UseQueryPanelEditorReturnType {
   editorDidMount: (editor: IStandaloneCodeEditor) => () => IStandaloneCodeEditor;
   isFocused: boolean;
+  isLoadingSuggestions: boolean;
   isPromptMode: boolean;
   languageConfiguration: LanguageConfiguration;
   languageId: string;
@@ -99,6 +100,7 @@ export const useQueryPanelEditor = (): UseQueryPanelEditorReturnType => {
   const userQueryString = useSelector(selectQueryString);
   const [editorText, setEditorText] = useState<string>(userQueryString);
   const [editorIsFocused, setEditorIsFocused] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const {
     data: {
       dataViews,
@@ -137,7 +139,6 @@ export const useQueryPanelEditor = (): UseQueryPanelEditorReturnType => {
       const onDidFocusDisposable = editorRef.current?.onDidFocusEditorWidget(() => {
         editorRef.current?.trigger('keyboard', 'editor.action.triggerSuggest', {});
       });
-
       if (!editorText) {
         editorRef.current?.trigger('keyboard', 'editor.action.triggerSuggest', {});
       }
@@ -166,6 +167,9 @@ export const useQueryPanelEditor = (): UseQueryPanelEditorReturnType => {
       if (token.isCancellationRequested) {
         return { suggestions: [], incomplete: false };
       }
+
+      setIsLoadingSuggestions(true);
+
       try {
         // Get the effective language for autocomplete (PPL -> PPL_Simplified for explore app)
         const effectiveLanguage = getEffectiveLanguageForAutoComplete(
@@ -231,9 +235,11 @@ export const useQueryPanelEditor = (): UseQueryPanelEditorReturnType => {
         };
       } catch (autocompleteError) {
         return { suggestions: [], incomplete: false };
+      } finally {
+        setIsLoadingSuggestions(false);
       }
     },
-    [isPromptModeRef, queryLanguage, queryString, dataViews, services]
+    [isPromptModeRef, queryLanguage, queryString, dataViews, services, setIsLoadingSuggestions]
   );
 
   const suggestionProvider = useMemo(() => {
@@ -251,11 +257,29 @@ export const useQueryPanelEditor = (): UseQueryPanelEditorReturnType => {
     (editor: IStandaloneCodeEditor) => {
       setEditorRef(editor);
 
+      // Trigger autocomplete on mount if in query mode and no text
+      if (isQueryMode && !editorText) {
+        editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+      }
+
       const focusDisposable = editor.onDidFocusEditorText(() => {
         setEditorIsFocused(true);
       });
       const blurDisposable = editor.onDidBlurEditorText(() => {
         setEditorIsFocused(false);
+      });
+
+      // Add content change listener to retrigger autocomplete when text is removed/changed
+      const contentChangeDisposable = editor.onDidChangeModelContent((e) => {
+        const didDelete = e.changes.some((c) => c.rangeLength > 0 && c.text === '');
+        if (didDelete) {
+          // Add a small delay to allow the editor to update before retriggering
+          setTimeout(() => {
+            if (editor.hasTextFocus()) {
+              editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+            }
+          }, 100);
+        }
       });
 
       editor.addAction(getCommandEnterAction(handleRun));
@@ -298,10 +322,11 @@ export const useQueryPanelEditor = (): UseQueryPanelEditorReturnType => {
       return () => {
         focusDisposable.dispose();
         blurDisposable.dispose();
+        contentChangeDisposable.dispose();
         return editor;
       };
     },
-    [setEditorRef, handleRun, switchEditorMode, setEditorIsFocused]
+    [setEditorRef, handleRun, switchEditorMode, setEditorIsFocused, editorText, isQueryMode]
   );
 
   const options = useMemo(() => {
@@ -342,6 +367,7 @@ export const useQueryPanelEditor = (): UseQueryPanelEditorReturnType => {
   return {
     editorDidMount,
     isFocused: editorIsFocused,
+    isLoadingSuggestions,
     isPromptMode,
     languageConfiguration,
     languageId: isPromptMode ? 'AI' : queryLanguage,

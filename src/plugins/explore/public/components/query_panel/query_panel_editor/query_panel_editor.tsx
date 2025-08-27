@@ -5,6 +5,7 @@
 
 import React from 'react';
 import classNames from 'classnames';
+import { EuiProgress } from '@elastic/eui';
 import { CodeEditor } from '../../../../../opensearch_dashboards_react/public';
 import { useQueryPanelEditor } from './use_query_panel_editor';
 import './query_panel_editor.scss';
@@ -12,6 +13,7 @@ import './query_panel_editor.scss';
 export const QueryPanelEditor = () => {
   const {
     isFocused,
+    isLoadingSuggestions,
     isPromptMode,
     onEditorClick,
     placeholder,
@@ -36,6 +38,11 @@ export const QueryPanelEditor = () => {
       {showPlaceholder ? (
         <div className={`exploreQueryPanelEditor__placeholder`}>{placeholder}</div>
       ) : null}
+      {isLoadingSuggestions && (
+        <div className="exploreQueryPanelEditor__loading">
+          <EuiProgress size="xs" color="accent" position="absolute" />
+        </div>
+      )}
     </div>
   );
 };

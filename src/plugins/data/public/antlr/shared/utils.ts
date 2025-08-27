@@ -144,8 +144,8 @@ export const fetchColumnValues = async (
     return fieldInOsd.spec.suggestions.topValues;
   }
 
-  // Fire a synchronous query to fetch values
-  await updateFieldValuesAsync(
+  // Fire a synchronous query to fetch values and return promise
+  return updateFieldValuesAsync(
     table,
     column,
     services,
@@ -153,10 +153,7 @@ export const fetchColumnValues = async (
     datasetType,
     fieldInOsd,
     skipTimeFilter
-  );
-
-  // Return the results of synchronous calls
-  return fieldInOsd?.spec.suggestions?.values ?? [];
+  ).then(() => fieldInOsd?.spec.suggestions?.values ?? []);
 };
 
 // Non-blocking async function to update field values in background
