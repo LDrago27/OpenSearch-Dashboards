@@ -6,7 +6,13 @@
 import { from } from 'rxjs';
 import { distinctUntilChanged, startWith, switchMap } from 'rxjs/operators';
 import { CodeCompletionCore } from 'antlr4-c3';
-import { Lexer as LexerType, Parser as ParserType } from 'antlr4ng';
+import {
+  BailErrorStrategy,
+  CharStream,
+  CommonTokenStream,
+  Lexer as LexerType,
+  Parser as ParserType,
+} from 'antlr4ng';
 import { monaco } from '@osd/monaco';
 import { HttpSetup } from 'opensearch-dashboards/public';
 import { QueryStringContract } from '../../query';
@@ -275,6 +281,66 @@ export const formatAvailableFieldsToSuggestions = (
   });
 };
 
+/**
+ * Inserts a candidate token at the cursor and tries parsing a subquery starting
+ * from the last '|' or the beginning of the query.
+ *
+ * @param Lexer The lexer class
+ * @param Parser The parser class
+ * @param query The full query string
+ * @param candidateToken The token to tentatively insert
+ * @param getParseTree Function that runs parser and returns parse tree
+ * @returns true if the tentative query parses successfully, false otherwise
+ */
+function filterCandidatesAtCursor(
+  Lexer: any,
+  Parser: any,
+  query: string,
+  cursorTokenIndex: number,
+  getParseTree: (parser: any) => any
+): string[] {
+  try {
+    // Tokenize the full query
+    const inputStream = new Lexer(CharStream.fromString(query));
+    const tokenStream = new CommonTokenStream(inputStream);
+    tokenStream.fill(); // Make sure all tokens are available
+    const parser = new Parser(tokenStream);
+
+    // 2. Remove error listeners
+    parser.removeErrorListeners();
+
+    // 3. Optional: use BailErrorStrategy for incomplete input
+    parser._errHandler = new BailErrorStrategy();
+    // Remove default error listeners
+    parser.removeErrorListeners();
+
+    // Build the parse tree
+    getParseTree(parser);
+
+    // Ensure the cursor token index is valid
+    if (cursorTokenIndex >= tokenStream.size) {
+      return [];
+    }
+
+    // Get expected tokens at this parser state
+    const expectedTokens = parser.getExpectedTokens();
+
+    // Map expected token types to literal names
+    const expectedTokenNames: string[] = [];
+    for (const tokenType of expectedTokens.toArray()) {
+      const literalName = parser.vocabulary.getLiteralName(tokenType);
+      if (literalName) {
+        expectedTokenNames.push(literalName.replace(/^'|'$/g, ''));
+      }
+    }
+
+    // Filter candidate tokens
+    return expectedTokenNames;
+  } catch (e) {
+    return [];
+  }
+}
+
 const singleParseQuery = <
   A extends AutocompleteResultBase,
   L extends LexerType,
@@ -303,6 +369,9 @@ const singleParseQuery = <
   const core = new CodeCompletionCore(parser);
   core.ignoredTokens = ignoredTokens;
   core.preferredRules = rulesToVisit;
+  core.showRuleStack = true;
+  core.showDebugOutput = true;
+  core.showResult = true;
   const cursorTokenIndex = findCursorTokenIndex(tokenStream, cursor, tokenDictionary.SPACE);
   if (cursorTokenIndex === undefined) {
     throw new Error(
@@ -311,17 +380,31 @@ const singleParseQuery = <
   }
 
   const suggestKeywords: KeywordSuggestion[] = [];
-  const { tokens, rules } = core.collectCandidates(cursorTokenIndex, context);
-  tokens.forEach((_, tokenType) => {
+  const { tokens, rules } = core.collectCandidates(cursorTokenIndex);
+
+  /*const tokenFilter = filterCandidatesAtCursor(
+    Lexer,
+    Parser,
+    query,
+    cursorTokenIndex,
+    getParseTree
+  ); */
+
+  tokens.forEach((producerRules, tokenType) => {
+    const tokenName = parser.vocabulary.getDisplayName(tokenType);
+    console.log('Token:', tokenName, '(', tokenType, ')');
+    console.log(producerRules);
+    console.log(
+      '  Produced by rules:',
+      producerRules.map((r) => parser.ruleNames[r])
+    );
     // Literal keyword names are quoted
     const literalName = parser.vocabulary.getLiteralName(tokenType)?.replace(quotesRegex, '$1');
     let symbolicName;
     if (!skipSymbolicKeywords) {
       symbolicName = parser.vocabulary.getSymbolicName(tokenType);
     }
-    if (!literalName && skipSymbolicKeywords) {
-      return;
-    }
+    if (!literalName && skipSymbolicKeywords) return;
 
     suggestKeywords.push({
       value: literalName || '',

@@ -99,12 +99,7 @@ const tokenDictionary: any = {
 
 const rulesToVisit = new Set([
   OpenSearchPPLParser.RULE_statsFunctionName,
-  OpenSearchPPLParser.RULE_percentileAggFunction,
   OpenSearchPPLParser.RULE_takeAggFunction,
-  OpenSearchPPLParser.RULE_getFormatFunction,
-  OpenSearchPPLParser.RULE_tableIdent,
-  OpenSearchPPLParser.RULE_positionFunctionName,
-  OpenSearchPPLParser.RULE_evalFunctionName,
   OpenSearchPPLParser.RULE_literalValue,
   OpenSearchPPLParser.RULE_integerLiteral,
   OpenSearchPPLParser.RULE_decimalLiteral,
@@ -112,6 +107,7 @@ const rulesToVisit = new Set([
   OpenSearchPPLParser.RULE_renameClasue,
   OpenSearchPPLParser.RULE_qualifiedName,
   OpenSearchPPLParser.RULE_tableQualifiedName,
+  OpenSearchPPLParser.RULE_wcQualifiedName,
 ]);
 
 export function processVisitedRules(
@@ -140,6 +136,7 @@ export function processVisitedRules(
         suggestAggregateFunctions = true;
         break;
       }
+      case OpenSearchPPLParser.RULE_wcQualifiedName:
       case OpenSearchPPLParser.RULE_qualifiedName: {
         // Check if we're in a stats function context
         const isInStatsFunction = (parentRuleList ?? []).includes(
