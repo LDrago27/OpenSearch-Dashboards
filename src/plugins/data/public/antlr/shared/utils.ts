@@ -6,7 +6,14 @@
 import { from } from 'rxjs';
 import { distinctUntilChanged, startWith, switchMap } from 'rxjs/operators';
 import { CodeCompletionCore } from 'antlr4-c3';
-import { Lexer as LexerType, Parser as ParserType } from 'antlr4ng';
+import {
+  BailErrorStrategy,
+  CharStream,
+  CommonTokenStream,
+  Lexer as LexerType,
+  ParserRuleContext,
+  Parser as ParserType,
+} from 'antlr4ng';
 import { monaco } from '@osd/monaco';
 import { HttpSetup } from 'opensearch-dashboards/public';
 import { QueryStringContract } from '../../query';
@@ -275,6 +282,89 @@ export const formatAvailableFieldsToSuggestions = (
   });
 };
 
+/**
+ * Inserts a candidate token at the cursor and tries parsing a subquery starting
+ * from the last '|' or the beginning of the query.
+ *
+ * @param Lexer The lexer class
+ * @param Parser The parser class
+ * @param query The full query string
+ * @param candidateToken The token to tentatively insert
+ * @param getParseTree Function that runs parser and returns parse tree
+ * @returns true if the tentative query parses successfully, false otherwise
+ */
+function filterCandidatesAtCursor(
+  Lexer: any,
+  Parser: any,
+  query: string,
+  cursorTokenIndex: number,
+  getParseTree: (parser: any) => any
+): string[] {
+  try {
+    // Tokenize the full query
+    const inputStream = new Lexer(CharStream.fromString(query));
+    const tokenStream = new CommonTokenStream(inputStream);
+    tokenStream.fill(); // Make sure all tokens are available
+    const parser = new Parser(tokenStream);
+
+    // 2. Remove error listeners
+    parser.removeErrorListeners();
+
+    // 3. Optional: use BailErrorStrategy for incomplete input
+    parser._errHandler = new BailErrorStrategy();
+    // Remove default error listeners
+    parser.removeErrorListeners();
+
+    // Build the parse tree
+    getParseTree(parser);
+
+    // Ensure the cursor token index is valid
+    if (cursorTokenIndex >= tokenStream.size) {
+      return [];
+    }
+
+    // Get expected tokens at this parser state
+    const expectedTokens = parser.getExpectedTokens();
+
+    // Map expected token types to literal names
+    const expectedTokenNames: string[] = [];
+    for (const tokenType of expectedTokens.toArray()) {
+      const literalName = parser.vocabulary.getLiteralName(tokenType);
+      if (literalName) {
+        expectedTokenNames.push(literalName.replace(/^'|'$/g, ''));
+      }
+    }
+
+    // Filter candidate tokens
+    return expectedTokenNames;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Gets the innermost parser rule context for the given cursor position
+ */
+function getInnermostParserRuleContext(
+  parser: ParserType,
+  cursorTokenIndex: number,
+  getParseTree: any
+): ParserRuleContext | undefined {
+  try {
+    const parseTree = getParseTree(parser);
+
+    if (!parseTree) {
+      return undefined;
+    }
+
+    // Use the existing getCurrentContext function to find the innermost context
+    const context = getCurrentContext(parseTree, cursorTokenIndex);
+    return context || undefined;
+  } catch (error) {
+    return undefined; // Fall back to no context (current behavior)
+  }
+}
+
 const singleParseQuery = <
   A extends AutocompleteResultBase,
   L extends LexerType,
@@ -303,6 +393,9 @@ const singleParseQuery = <
   const core = new CodeCompletionCore(parser);
   core.ignoredTokens = ignoredTokens;
   core.preferredRules = rulesToVisit;
+  core.showRuleStack = true;
+  core.showDebugOutput = true;
+  core.showResult = true;
   const cursorTokenIndex = findCursorTokenIndex(tokenStream, cursor, tokenDictionary.SPACE);
   if (cursorTokenIndex === undefined) {
     throw new Error(
@@ -311,17 +404,59 @@ const singleParseQuery = <
   }
 
   const suggestKeywords: KeywordSuggestion[] = [];
-  const { tokens, rules } = core.collectCandidates(cursorTokenIndex, context);
-  tokens.forEach((_, tokenType) => {
+
+  // Get the innermost parser rule context to improve autocomplete accuracy
+  const parserContext = getInnermostParserRuleContext(parser, cursorTokenIndex, getParseTree);
+  
+  // Debug logging to see what context we're providing
+  // eslint-disable-next-line no-console
+  console.log('Innermost parser context:', {
+    contextType: parserContext?.constructor.name,
+    ruleIndex: parserContext?.ruleIndex,
+    ruleName: parserContext ? parser.ruleNames[parserContext.ruleIndex] : 'none',
+    startToken: parserContext?.start?.tokenIndex,
+    stopToken: parserContext?.stop?.tokenIndex,
+    cursorTokenIndex
+  });
+
+    console.log(' parser context:', {
+    contextType: context?.constructor.name,
+    ruleIndex: context?.ruleIndex,
+    ruleName: context ? parser.ruleNames[context.ruleIndex] : 'none',
+    startToken: context?.start?.tokenIndex,
+    stopToken: context?.stop?.tokenIndex,
+    cursorTokenIndex
+  });
+  
+  
+  const { tokens, rules } = core.collectCandidates(cursorTokenIndex, parserContext);
+
+  /* const tokenFilter = filterCandidatesAtCursor(
+    Lexer,
+    Parser,
+    query,
+    cursorTokenIndex,
+    getParseTree
+  ); */
+
+  tokens.forEach((producerRules, tokenType) => {
+    const tokenName = parser.vocabulary.getDisplayName(tokenType);
+    // eslint-disable-next-line no-console
+    console.log('Token:', tokenName, '(', tokenType, ')');
+    // eslint-disable-next-line no-console
+    console.log(producerRules);
+    // eslint-disable-next-line no-console
+    console.log(
+      '  Produced by rules:',
+      producerRules.map((r) => parser.ruleNames[r])
+    );
     // Literal keyword names are quoted
     const literalName = parser.vocabulary.getLiteralName(tokenType)?.replace(quotesRegex, '$1');
     let symbolicName;
     if (!skipSymbolicKeywords) {
       symbolicName = parser.vocabulary.getSymbolicName(tokenType);
     }
-    if (!literalName && skipSymbolicKeywords) {
-      return;
-    }
+    if (!literalName && skipSymbolicKeywords) return;
 
     suggestKeywords.push({
       value: literalName || '',
@@ -477,4 +612,24 @@ export const parseQuery = <
 function escapeIdentifier(name: string) {
   // Escape backticks inside name by doubling them
   return '`' + name.replace(/`/g, '``') + '`';
+}
+
+function getCurrentContext(node: ParserRuleContext, tokenIndex: number): ParserRuleContext | null {
+  if (!node) return null;
+
+  // If this node does not include the token, skip it
+  if (!node.start || !node.stop || tokenIndex < node.start.tokenIndex || tokenIndex > node.stop.tokenIndex) {
+    return null;
+  }
+
+  // Recursively check children
+  for (const child of node.children ?? []) {
+    if (child instanceof ParserRuleContext) {
+      const deeper = getCurrentContext(child, tokenIndex);
+      if (deeper) return deeper;
+    }
+  }
+
+  // If no deeper child contains the token, this is the innermost context
+  return node;
 }

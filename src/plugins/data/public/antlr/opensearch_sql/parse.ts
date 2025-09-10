@@ -57,6 +57,5 @@ export function createParser<L extends LexerType, P extends ParserType>(
 ): P {
   const parser = new Parser(new CommonTokenStream(new Lexer(CharStream.fromString(query))));
   parser.removeErrorListeners();
-  parser.interpreter.predictionMode = PredictionMode.LL; // Handle more ambigious queries
   return parser;
 }

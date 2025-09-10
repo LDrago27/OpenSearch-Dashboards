@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OpenSearchPPLParser } from '@osd/antlr-grammar';
+import { SimplifiedOpenSearchPPLParser as OpenSearchPPLParser } from '@osd/antlr-grammar';
 import { monaco } from '@osd/monaco';
 import { SuggestionItemDetailsTags } from '../shared/constants';
 
