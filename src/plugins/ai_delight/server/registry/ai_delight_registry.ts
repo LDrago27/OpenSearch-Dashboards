@@ -77,14 +77,20 @@ export class AiDelightRegistry {
 
       // Prepare osd-agents request
       const osdAgentsRequest: OsdAgentsRequest = {
-        input: {
-          messages: [{ role: 'user', content: userPrompt }],
-          systemPrompt: delight.systemPrompt,
-          config: {
-            modelId: registration.modelConfig?.modelId || 'anthropic.claude-3-sonnet-20240229-v1:0',
-            maxTokens: registration.modelConfig?.maxTokens || 1000,
-            temperature: registration.modelConfig?.temperature || 0.1,
+        threadId: `ai-delight-${request.delightId}-${Date.now()}`,
+        runId: `run-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+        messages: [
+          {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+            role: 'user',
+            content: userPrompt,
           },
+        ],
+        systemPrompt: delight.systemPrompt,
+        config: {
+          modelId: registration.modelConfig?.modelId || 'anthropic.claude-3-sonnet-20240229-v1:0',
+          maxTokens: registration.modelConfig?.maxTokens || 1000,
+          temperature: registration.modelConfig?.temperature || 0.1,
         },
       };
 
@@ -149,10 +155,85 @@ export class AiDelightRegistry {
         throw new Error(`osd-agents request failed: ${response.status} ${response.statusText}`);
       }
 
+      // Handle streaming response (text/event-stream)
+      if (response.headers.get('content-type')?.includes('text/event-stream')) {
+        return await this.handleStreamingResponse(response);
+      }
+
+      // Fallback to JSON response
       return await response.json();
     } catch (error) {
       this.logger.error('Failed to call osd-agents', { error: error.message });
       throw new Error(`osd-agents unavailable: ${error.message}`);
+    }
+  }
+
+  private async handleStreamingResponse(response: Response): Promise<OsdAgentsResponse> {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No readable stream available');
+    }
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let done = false;
+
+    try {
+      while (!done) {
+        const { done: streamDone, value } = await reader.read();
+        done = streamDone;
+
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          fullContent += chunk;
+        }
+      }
+
+      // Parse the osd-agents Server-Sent Events (SSE) streaming response
+      let resultContent = '';
+
+      // Split response into lines and process each SSE event
+      const lines = fullContent.split('\n');
+      let accumulatedDelta = '';
+
+      // Process each line looking for SSE data events
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+
+        // Look for SSE data lines
+        if (trimmedLine.startsWith('data: ')) {
+          const dataContent = trimmedLine.substring(6); // Remove 'data: ' prefix
+
+          try {
+            const event = JSON.parse(dataContent);
+
+            // Accumulate content from TEXT_MESSAGE_CONTENT events
+            if (event.type === 'TEXT_MESSAGE_CONTENT' && event.delta) {
+              accumulatedDelta += event.delta;
+            }
+          } catch {
+            // Skip malformed JSON in data lines
+            continue;
+          }
+        }
+      }
+
+      // Use the accumulated delta content as the result
+      if (accumulatedDelta.trim()) {
+        resultContent = accumulatedDelta.trim();
+      } else {
+        // Fallback: if no delta content found, use the entire response
+        resultContent = fullContent.trim();
+      }
+
+      return {
+        result: resultContent,
+        message: resultContent,
+        response: resultContent,
+        usage: undefined, // Streaming responses may not include usage info
+      };
+    } finally {
+      reader.releaseLock();
     }
   }
 
