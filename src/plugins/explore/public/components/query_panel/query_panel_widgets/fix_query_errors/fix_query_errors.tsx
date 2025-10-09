@@ -68,7 +68,43 @@ export const FixQueryErrorsButton = () => {
       });
 
       if (response.success && response.result) {
-        setFixResult(response.result);
+        // Handle different response formats
+        let parsedResult: FixResult;
+
+        if (typeof response.result === 'string') {
+          // If result is a string, try to parse it as JSON
+          try {
+            const jsonResult = JSON.parse(response.result);
+            parsedResult = {
+              fixedQuery: jsonResult.fixedQuery || currentQuery,
+              explanation: jsonResult.explanation || response.result,
+              errorType: jsonResult.errorType || 'Analysis',
+            };
+          } catch {
+            // If not JSON, treat as explanation with original query
+            parsedResult = {
+              fixedQuery: currentQuery,
+              explanation: response.result,
+              errorType: 'Analysis',
+            };
+          }
+        } else if (typeof response.result === 'object' && response.result !== null) {
+          // If result is already an object, use it directly with fallbacks
+          parsedResult = {
+            fixedQuery: response.result.fixedQuery || currentQuery,
+            explanation: response.result.explanation || 'No explanation provided',
+            errorType: response.result.errorType || 'Analysis',
+          };
+        } else {
+          // Fallback for other types
+          parsedResult = {
+            fixedQuery: currentQuery,
+            explanation: 'No analysis result available',
+            errorType: 'Unknown',
+          };
+        }
+
+        setFixResult(parsedResult);
       } else {
         setError(response.error || 'Failed to analyze query');
       }

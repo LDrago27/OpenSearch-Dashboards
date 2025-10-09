@@ -54,14 +54,18 @@ export interface AIDelightInfo {
 }
 
 export interface OsdAgentsRequest {
-  input: {
-    messages: Array<{ role: string; content: string }>;
-    systemPrompt?: string;
-    config: {
-      modelId?: string;
-      maxTokens?: number;
-      temperature?: number;
-    };
+  threadId: string;
+  runId: string;
+  messages: Array<{
+    id: string;
+    role: string;
+    content: string;
+  }>;
+  systemPrompt?: string;
+  config?: {
+    modelId?: string;
+    maxTokens?: number;
+    temperature?: number;
   };
 }
 
