@@ -39,6 +39,7 @@ import { ExpressionsPublicPlugin, ExpressionsStart } from 'src/plugins/expressio
 import { NavigationPublicPluginStart as NavigationStart } from '../../navigation/public';
 import { ContextProviderStart } from '../../context_provider/public';
 import { Storage, IOsdUrlStateStorage } from '../../opensearch_dashboards_utils/public';
+import { AiDelightPublicSetup, AiDelightPublicStart } from '../../ai_delight/public';
 import { ScopedHistory } from '../../../core/public';
 import { SavedExploreLoader, SavedExplore } from './saved_explore';
 import { TabRegistryService } from './services/tab_registry/tab_registry_service';
@@ -97,6 +98,7 @@ export interface ExploreSetupDependencies {
   usageCollection: UsageCollectionSetup;
   expressions: ReturnType<ExpressionsPublicPlugin['setup']>;
   dashboard: DashboardSetup;
+  aiDelight?: AiDelightPublicSetup;
 }
 
 /**
@@ -116,6 +118,7 @@ export interface ExploreStartDependencies {
   expressions: ExpressionsStart;
   dashboard: DashboardStart;
   contextProvider?: ContextProviderStart;
+  aiDelight?: AiDelightPublicStart;
 }
 
 // ============================================================================
@@ -181,6 +184,7 @@ export interface ExploreServices {
 
   dashboard: DashboardStart;
   keyboardShortcut?: KeyboardShortcutStart;
+  aiDelight?: AiDelightPublicStart;
 
   supportedTypes?: string[];
 }
