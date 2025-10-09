@@ -1,0 +1,10 @@
+{
+  "id": "aiDelight",
+  "version": "1.0.0",
+  "opensearchDashboardsVersion": "opensearchDashboards",
+  "server": true,
+  "ui": true,
+  "requiredPlugins": [],
+  "optionalPlugins": ["chat"],
+  "extraPublicDirs": []
+}
