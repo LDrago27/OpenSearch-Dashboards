@@ -94,6 +94,7 @@ export function buildServices(
 
     dashboard: plugins.dashboard,
     keyboardShortcut: core.keyboardShortcut,
+    aiDelight: plugins.aiDelight,
 
     // Add supportedTypes from config
     supportedTypes,

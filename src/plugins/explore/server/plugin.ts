@@ -15,6 +15,12 @@ import { exploreSavedObjectType } from './saved_objects';
 import { traceUiSettings } from './trace_ui_settings';
 
 import { ExplorePluginSetup, ExplorePluginStart } from './types';
+import { AiDelightServerSetup } from '../../ai_delight/server';
+import { fixQueryError } from './ai_delights/fix_query_error';
+
+interface ExploreServerSetupDeps {
+  aiDelight?: AiDelightServerSetup;
+}
 
 export class ExplorePlugin implements Plugin<ExplorePluginSetup, ExplorePluginStart> {
   private readonly logger: Logger;
@@ -24,7 +30,7 @@ export class ExplorePlugin implements Plugin<ExplorePluginSetup, ExplorePluginSt
     this.logger = initializerContext.logger.get();
   }
 
-  public setup(core: CoreSetup) {
+  public setup(core: CoreSetup, plugins: ExploreServerSetupDeps): ExplorePluginSetup {
     this.logger.debug('explore: Setup');
 
     core.capabilities.registerProvider(capabilitiesProvider);
@@ -41,12 +47,19 @@ export class ExplorePlugin implements Plugin<ExplorePluginSetup, ExplorePluginSt
     core.uiSettings.register(traceUiSettings);
     core.savedObjects.registerType(exploreSavedObjectType);
 
+    // Register fix_query_error AI Delight if available
+    if (plugins.aiDelight) {
+      plugins.aiDelight.registry.register({
+        id: 'fix-query-error',
+        delight: fixQueryError,
+      });
+    }
+
     return {};
   }
 
   public start(core: CoreStart) {
     return {};
   }
-
   public stop() {}
 }
