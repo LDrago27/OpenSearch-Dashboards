@@ -49,6 +49,9 @@ env:
   OSD_SNAPSHOT_SKIP_VERIFY_CHECKSUM: true
   OSD_OPTIMIZER_MAX_WORKERS: 12
   NODE_OPTIONS: '--max-old-space-size=12288 --max-semi-space-size=128 --dns-result-order=ipv4first'
+  # Optimizer settings for faster compilation
+  OSD_OPTIMIZER_CACHE: true
+  OSD_OPTIMIZER_DIST: false
   COMMENT_TAG: '[MANUAL CYPRESS TEST RUN RESULTS]'
   COMMENT_SUCCESS_MSG: ':white_check_mark: Cypress test run succeeded!'
   COMMENT_FAILURE_MSG: ':x: Cypress test run failed!'
@@ -149,12 +152,12 @@ jobs:
       options: '--user 1001 --shm-size=4g'
     env:
       START_CMD: ${{ matrix.config == 'query_enhanced' &&
-        'node scripts/opensearch_dashboards --no-base-path --no-watch --savedObjects.maxImportPayloadBytes=10485760 --server.maxPayloadBytes=1759977 --logging.json=false --data.search.aggs.shardDelay.enabled=true --csp.warnLegacyBrowsers=false --uiSettings.overrides["query:enhancements:enabled"]=true --uiSettings.overrides[''home:useNewHomePage'']=true --data_source.enabled=true --workspace.enabled=true --opensearch.ignoreVersionMismatch=true --data.savedQueriesNewUI.enabled=true --home.disableExperienceModal=true' ||
+        'node scripts/opensearch_dashboards --no-base-path --savedObjects.maxImportPayloadBytes=10485760 --server.maxPayloadBytes=1759977 --logging.json=false --data.search.aggs.shardDelay.enabled=true --csp.warnLegacyBrowsers=false --uiSettings.overrides["query:enhancements:enabled"]=true --uiSettings.overrides[''home:useNewHomePage'']=true --data_source.enabled=true --workspace.enabled=true --opensearch.ignoreVersionMismatch=true --data.savedQueriesNewUI.enabled=true --home.disableExperienceModal=true' ||
         matrix.config == 'explore' &&
-        'node scripts/opensearch_dashboards --no-base-path --no-watch --savedObjects.maxImportPayloadBytes=10485760 --server.maxPayloadBytes=1759977 --logging.json=false --data.search.aggs.shardDelay.enabled=true --csp.warnLegacyBrowsers=false --uiSettings.overrides["query:enhancements:enabled"]=true --uiSettings.overrides[''home:useNewHomePage'']=true --data_source.enabled=true --workspace.enabled=true --opensearch.ignoreVersionMismatch=true --data.savedQueriesNewUI.enabled=true --explore.enabled=true --explore.discoverTraces.enabled=true --home.disableExperienceModal=true --datasetManagement.enabled=true' ||
+        'node scripts/opensearch_dashboards --no-base-path --savedObjects.maxImportPayloadBytes=10485760 --server.maxPayloadBytes=1759977 --logging.json=false --data.search.aggs.shardDelay.enabled=true --csp.warnLegacyBrowsers=false --uiSettings.overrides["query:enhancements:enabled"]=true --uiSettings.overrides[''home:useNewHomePage'']=true --data_source.enabled=true --workspace.enabled=true --opensearch.ignoreVersionMismatch=true --data.savedQueriesNewUI.enabled=true --explore.enabled=true --explore.discoverTraces.enabled=true --home.disableExperienceModal=true --datasetManagement.enabled=true' ||
         matrix.config == 'dashboard' &&
-        'node scripts/opensearch_dashboards --no-base-path --no-watch --savedObjects.maxImportPayloadBytes=10485760 --server.maxPayloadBytes=1759977 --logging.json=false --data.search.aggs.shardDelay.enabled=true --home.disableExperienceModal=true' ||
-        'node ../scripts/opensearch_dashboards --no-base-path --no-watch --savedObjects.maxImportPayloadBytes=10485760 --server.maxPayloadBytes=1759977 --logging.json=false --data.search.aggs.shardDelay.enabled=true --csp.warnLegacyBrowsers=false --uiSettings.overrides["query:enhancements:enabled"]=false --home.disableExperienceModal=true' }}
+        'node scripts/opensearch_dashboards --no-base-path --savedObjects.maxImportPayloadBytes=10485760 --server.maxPayloadBytes=1759977 --logging.json=false --data.search.aggs.shardDelay.enabled=true --home.disableExperienceModal=true' ||
+        'node ../scripts/opensearch_dashboards --no-base-path --savedObjects.maxImportPayloadBytes=10485760 --server.maxPayloadBytes=1759977 --logging.json=false --data.search.aggs.shardDelay.enabled=true --csp.warnLegacyBrowsers=false --uiSettings.overrides["query:enhancements:enabled"]=false --home.disableExperienceModal=true' }}
       OPENSEARCH_SNAPSHOT_CMD:
         ${{ (matrix.config == 'query_enhanced' || matrix.config == 'explore') &&
         '/bin/bash -c "./opensearch-${{ env.LATEST_VERSION }}/opensearch-tar-install.sh &"' ||
@@ -207,9 +210,6 @@ jobs:
 
       - name: Run bootstrap
         run: yarn osd bootstrap
-
-      - name: Build plugins
-        run: node scripts/build_opensearch_dashboards_platform_plugins --no-examples --workers 12 --dist
 
       - name: Checkout FT repo
         if: matrix.test_location == 'ftr'
@@ -271,8 +271,24 @@ jobs:
         with:
           working-directory: ${{ env.FTR_PATH }}
           start: ${{ env.OPENSEARCH_SNAPSHOT_CMD }}, ${{ env.START_CMD }}
-          wait-on: 'http://localhost:9200, http://localhost:5601'
-          command: yarn cypress:run-without-security --browser ${{ env.CYPRESS_BROWSER }} --spec ${{ env.SPEC }}
+          wait-on: 'http://localhost:9200'
+          wait-on-timeout: 600000
+          command: |
+            echo "Waiting for OpenSearch Dashboards to start and compile bundles..."
+            timeout 600 bash -c '
+              while true; do
+                if curl -s http://localhost:5601 > /dev/null 2>&1; then
+                  echo "Server responding, checking for bundle compilation..."
+                  if docker logs $(docker ps -q) 2>&1 | grep -q "bundles compiled successfully\|optimization of .* completed"; then
+                    echo "Bundles compiled successfully!"
+                    break
+                  fi
+                fi
+                echo "Still waiting for bundle compilation..."
+                sleep 10
+              done
+            '
+            yarn cypress:run-without-security --browser ${{ env.CYPRESS_BROWSER }} --spec ${{ env.SPEC }}
 
       - name: Download OpenSearch
         if: matrix.config == 'query_enhanced' || matrix.config == 'explore'
@@ -350,6 +366,7 @@ jobs:
           install-command: npx cypress install --force
           start: ${{ env.START_CMD }}
           wait-on: 'http://localhost:9200, http://localhost:5601'
+          wait-on-timeout: 600000
           command: yarn cypress:run-without-security --browser ${{ env.CYPRESS_BROWSER }} --spec ${{ env.DASHBOARDS_SPEC }}
 
       - name: Run OSD Cypress tests with Prometheus (part of Explore group 14)
@@ -359,6 +376,7 @@ jobs:
           install-command: npx cypress install --force
           start: ${{ env.START_CMD }}
           wait-on: 'http://localhost:9200, http://localhost:5601, http://localhost:9090/-/healthy'
+          wait-on-timeout: 600000
           command: yarn cypress:run-without-security --browser ${{ env.CYPRESS_BROWSER }} --spec ${{ env.DASHBOARDS_SPEC }}
         env:
           PROMETHEUS_CONNECTION_URL: 'http://localhost:9090'
@@ -370,6 +388,7 @@ jobs:
           install-command: npx cypress install --force
           start: ${{ env.OPENSEARCH_SNAPSHOT_CMD }}, ${{ env.START_CMD }}
           wait-on: 'http://localhost:9200, http://localhost:5601'
+          wait-on-timeout: 600000
           command: yarn cypress:run-without-security --browser ${{ env.CYPRESS_BROWSER }} --spec ${{ env.DASHBOARDS_SPEC }}
 
       - name: Compress FT repo artifacts
